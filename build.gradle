@@ -60,7 +60,7 @@ def getVersion = { boolean considerSnapshot ->
 }
 
 // for publishing a release, call Gradle with Environment Variable RELEASE:
-//      RELEASE=true gradle JSQLParser:publish
+// RELEASE=true gradle fpng-java:publish
 version = getVersion( !System.getenv("RELEASE") )
 group = 'com.manticore-projects.tools'
 description = 'Java FPNG Encoder'
@@ -213,7 +213,7 @@ checkstyle {
 
 spotless {
     // optional: limit format enforcement to just the files changed by this feature branch
-    ratchetFrom 'origin/main'
+    //ratchetFrom 'origin/main'
 
     format 'misc', {
         // define the files to apply `misc` to
@@ -237,7 +237,6 @@ tasks.withType(Checkstyle).configureEach {
     }
 }
 
-
 tasks.register('gitChangelogTask', GitChangelogTask) {
     fromRepo = file("$projectDir")
     file = new File("${projectDir}/src/site/sphinx/changelog.rst")
@@ -254,7 +253,7 @@ Changelog
 
 {{#tags}}
 {{#ifMatches name "^Unreleased.*"}}
-Latest Changes since |JSQLPARSER_VERSION|
+Latest Changes since |FPNG_ENCODER_VERSION|
 {{/ifMatches}}
 {{#ifMatches name "^(?!Unreleased).*"}}
 Version {{name}}
@@ -277,19 +276,6 @@ Version {{name}}
     // @formatter:on
 }
 
-tasks.register('updateKeywords', JavaExec) {
-    group = "Execution"
-    description = "Run the main class with JavaExecTask"
-    classpath = sourceSets.main.runtimeClasspath
-    args = [
-            file('src/main/jjtree/net/sf/jsqlparser/parser/JSqlParserCC.jjt').absolutePath
-            , file('src/site/sphinx/keywords.rst').absolutePath
-    ]
-    main("net.sf.jsqlparser.parser.ParserKeywordsUtils")
-
-    dependsOn(compileJava)
-}
-
 tasks.register('sphinx', Exec) {
     dependsOn(gitChangelogTask, xmldoc)
 
@@ -297,23 +283,23 @@ tasks.register('sphinx', Exec) {
 .. |_| unicode:: U+00A0
     :trim:
 
-.. |JSQLPARSER_EMAIL| replace:: support@manticore-projects.com
-.. |JSQLPARSER_VERSION| replace:: ${getVersion(false)}
-.. |JSQLPARSER_SNAPSHOT_VERSION| replace:: ${getVersion(true)}
-.. |JSQLPARSER_STABLE_VERSION_LINK| raw:: html
+.. |FPNG_ENCODER_EMAIL| replace:: support@manticore-projects.com
+.. |FPNG_ENCODER_VERSION| replace:: ${getVersion(false)}
+.. |FPNG_ENCODER_SNAPSHOT_VERSION| replace:: ${getVersion(true)}
+.. |FPNG_ENCODER_STABLE_VERSION_LINK| raw:: html
 
     <a href='http://manticore-projects.com/download/${project.name}-${getVersion(false)}/${project.name}-${getVersion(false)}.jar'>${project.name}-${getVersion(false)}.jar</a>
 
-.. |JSQLPARSER_SNAPSHOT_VERSION_LINK| raw:: html
+.. |FPNG_ENCODER_SNAPSHOT_VERSION_LINK| raw:: html
 
     <a href='http://manticore-projects.com/download/${project.name}-${getVersion(false)}/${project.name}-${getVersion(true)}.jar'>${project.name}-${getVersion(true)}.jar</a>
 
 """
 
     args = [
-            "-Dproject=JSQLParser"
-            , "-Dcopyright=Tobias Warneke, 2022"
-            , "-Dauthor=Tobias Warneke"
+            "-Dproject=FPNG_JAVA"
+            , "-Dcopyright=manticore-projects.com, 2023"
+            , "-Dauthor=Andreas Reichel"
             , "-Drelease=${getVersion(false)}"
             , "-Drst_prolog=$PROLOG"
             , "${projectDir}/src/site/sphinx"
@@ -338,7 +324,7 @@ publish {
 publishing {
     publications {
         mavenJava(MavenPublication) {
-            artifactId = 'jsqlparser'
+            artifactId = 'fpng-java'
 
             from components.java
             versionMapping {
@@ -350,9 +336,9 @@ publishing {
                 }
             }
             pom {
-                name = 'JSQLParser library'
-                description = 'Parse SQL Statements into Abstract Syntax Trees (AST)'
-                url = 'https://github.com/JSQLParser/JSqlParser'
+                name = 'Java FPNG-Encoder library'
+                description = 'A Java Wrapper around the highly optimized native FPNG Encoder'
+                url = 'https://github.com/manticore-projects/fpng-java'
                 licenses {
                     license {
                         name = 'GNU Library or Lesser General Public License (LGPL) V2.1'
@@ -371,9 +357,9 @@ publishing {
                     }
                 }
                 scm {
-                    connection = 'scm:git:https://github.com/JSQLParser/JSqlParser.git'
-                    developerConnection = 'scm:git:ssh://git@github.com:JSQLParser/JSqlParser.git'
-                    url = 'https://github.com/JSQLParser/JSqlParser.git'
+                    connection = 'scm:git:https://github.com/manticore-projects/fpng-java'
+                    developerConnection = 'scm:git:ssh://git@github.com:manticore-projects/fpng-java.git'
+                    url = 'https://github.com/manticore-projects/fpng-java.git'
                 }
             }
         }
