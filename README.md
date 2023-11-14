@@ -1,7 +1,7 @@
 # fpng-java
 Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng)
 
-[![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)
+[![Java CI with Gradle](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)
 
 # How to use it
 
