@@ -1,3 +1,5 @@
+import se.bjurr.gitchangelog.plugin.gradle.GitChangelogTask
+
 plugins {
     id 'java'
     id 'maven-publish'
@@ -211,7 +213,7 @@ checkstyle {
 
 spotless {
     // optional: limit format enforcement to just the files changed by this feature branch
-    ratchetFrom 'origin/master'
+    ratchetFrom 'origin/main'
 
     format 'misc', {
         // define the files to apply `misc` to
@@ -288,26 +290,8 @@ tasks.register('updateKeywords', JavaExec) {
     dependsOn(compileJava)
 }
 
-xslt  {
-    def outFile = version.endsWith("-SNAPSHOT")
-            ?   file("src/site/sphinx/syntax_snapshot.rst")
-            :   file("src/site/sphinx/syntax_stable.rst")
-
-    dependsOn(renderRR)
-    stylesheet 'src/main/resources/rr/xhtml2rst.xsl'
-
-    parameters (
-            "withFloatingToc": System.getenv().getOrDefault("FLOATING_TOC", "true"),
-            "isSnapshot": Boolean.toString(version.endsWith("-SNAPSHOT"))
-    )
-
-    // Transform every .xml file in the "input" directory.
-    input "$buildDir/rr/JSqlParserCC.xhtml"
-    output outFile
-}
-
 tasks.register('sphinx', Exec) {
-    dependsOn(gitChangelogTask, renderRR, xslt, updateKeywords, xmldoc)
+    dependsOn(gitChangelogTask, xmldoc)
 
     String PROLOG = """
 .. |_| unicode:: U+00A0
@@ -348,7 +332,7 @@ tasks.register('sphinx', Exec) {
 }
 
 publish {
-    dependsOn(check, gitChangelogTask, renderRR, xslt, updateKeywords, xmldoc)
+    dependsOn(check, gitChangelogTask, xmldoc)
 }
 
 publishing {
@@ -458,4 +442,4 @@ tasks.register('upload') {
         }
     }
 }
-upload.dependsOn(check, assemble, gitChangelogTask, renderRR, xslt, updateKeywords, xmldoc)
+upload.dependsOn(check, assemble, gitChangelogTask, xmldoc)
