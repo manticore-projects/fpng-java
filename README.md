@@ -45,12 +45,12 @@ PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   366
 # To Do
 
 - [ ] Right now we compare only the speed without paying attention to the size of the encoded image. We will need to calibrate the benchmarks to compare only modes producing similar sizes. Also, 24bit vs 32bit modes need to be honored.
-
+- [ ] Benchmark the translation of the `BufferedImage` into the `RGBA` byte array, which is right now Pixel based and likely slow.
 - [ ] Further we should add more test images for the "screen capturing" use case, which may yield different outcomes. Right now only photo-realistic images are tested. 
-
 - [ ] Publish Artifact to Maven/Sonatype.
-
 - [ ] Fat/Ueber JAR with support for the 4 major Operating Systems.
+- [ ] Drop slow JNA and replace with a JNI implementation.
+
 
 
 
