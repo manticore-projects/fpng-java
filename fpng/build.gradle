@@ -1,0 +1,24 @@
+plugins {
+    id 'cpp-library'
+}
+
+group = 'com.manticore.tools'
+version = '1.0.6-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+library {
+    linkage = [Linkage.STATIC, Linkage.SHARED]
+    targetMachines = [
+            machines.linux.x86_64,
+            machines.windows.x86, machines.windows.x86_64,
+            machines.macOS.x86_64
+    ]
+}
+
+tasks.withType(CppCompile).configureEach {
+    compilerArgs = ['-fPIC',  '-O3', '-march=native', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-fno-strict-aliasing']
+}
+

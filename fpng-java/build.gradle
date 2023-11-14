@@ -1,0 +1,41 @@
+plugins {
+    id 'java-library'
+}
+
+group = 'com.manticore.tools'
+version = '1.0-SNAPSHOT'
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    //implementation project(':fpng')
+    implementation 'net.java.dev.jna:jna:+'
+    implementation 'net.java.dev.jna:jna-platform:+'
+
+    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation 'commons-io:commons-io:+'
+
+}
+
+test {
+    useJUnitPlatform()
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+
+    sourceCompatibility = '1.8'
+    targetCompatibility = '1.8'
+    // needed for XML-Doclet to work (since Doclet changed again with Java 13)
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(11))
+    }
+}
+
+compileJava.dependsOn {
+    ':fpng:build'
+}
