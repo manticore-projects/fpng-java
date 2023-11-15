@@ -34,7 +34,7 @@ jmh {
 }
 
 jmhRunBytecodeGenerator.dependsOn {
-    ':fpng-java:build', ':fpnge-java:build'
+    ':fpng-java:build, :fpnge-java:build'
 }
 
 //jmh {

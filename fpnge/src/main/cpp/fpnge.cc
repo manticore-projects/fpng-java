@@ -1604,24 +1604,16 @@ extern "C" CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels
                               unsigned char* pImage, size_t width, size_t height) {
 
       struct FPNGEOptions options;
-      FPNGEFillOptions(&options, 2, FPNGE_CICP_NONE);
+      FPNGEFillOptions(&options, 1, FPNGE_CICP_NONE);
 
       size_t row_stride = width * num_channels * bytes_per_channel;
 
-      void *output = malloc(FPNGEOutputAllocSize(bytes_per_channel, num_channels, width, height));
-
-      size_t size = FPNGEEncode(bytes_per_channel, num_channels, pImage, width, row_stride,
-                                                  height, output, &options);
-
-
       CharArray* data = (CharArray*) malloc( sizeof(CharArray) );
-      data->size = size;
-      data->data = (unsigned char*) malloc( size * sizeof(unsigned char) );
+            data->size = FPNGEOutputAllocSize(bytes_per_channel, num_channels, width, height);
+            data->data = (unsigned char*) malloc(data->size);
 
-      // copy the array
-      memcpy(data->data, output, size);
-
-      free((void*)output);
+      data->size = FPNGEEncode(bytes_per_channel, num_channels, pImage, width, row_stride,
+                                                  height, data->data, &options);
 
       return data;
 }
