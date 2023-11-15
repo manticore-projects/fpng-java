@@ -12,14 +12,15 @@ repositories {
 
 dependencies {
     jmh project(":fpng-java")
+    jmh project(":fpnge-java")
     jmh 'com.pngencoder:pngencoder:0.14.0'
     jmh files('lib/pngencoder-1.jar')
 
     jmh 'commons-io:commons-io:+'
     jmh 'net.java.dev.jna:jna:+'
     jmh 'net.java.dev.jna:jna-platform:+'
-//    jmh 'org.openjdk.jmh:jmh-core:+'
-//    jmh 'org.openjdk.jmh:jmh-generator-annprocess:+'
+    jmh 'org.openjdk.jmh:jmh-core:+'
+    jmh 'org.openjdk.jmh:jmh-generator-annprocess:+'
 }
 
 jmh {
@@ -33,7 +34,7 @@ jmh {
 }
 
 jmhRunBytecodeGenerator.dependsOn {
-    ':fpng-java:build'
+    ':fpng-java:build', ':fpnge-java:build'
 }
 
 //jmh {
@@ -78,12 +79,5 @@ jmhRunBytecodeGenerator.dependsOn {
 java {
     withSourcesJar()
     withJavadocJar()
-
-    sourceCompatibility = '1.8'
-    targetCompatibility = '1.8'
-    // needed for XML-Doclet to work (since Doclet changed again with Java 13)
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(11))
-    }
 }
 

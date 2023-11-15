@@ -10,7 +10,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 
-class FPNGEncoderTest {
+class FPNGETest {
 
     @Test
     void encodeTest() {
@@ -20,12 +20,12 @@ class FPNGEncoderTest {
         ) {
             assert inputStream!=null;
             BufferedImage image = ImageIO.read(inputStream);
-            byte[] data = FPNGEncoder.encode(image, 4, 0);
+            byte[] data = FPNGE.encode(image, 4, 0);
 
             Assertions.assertNotNull(data);
             Assertions.assertTrue(data.length > 0);
 
-            File file = File.createTempFile("fpngEncoder", ".png");
+            File file = File.createTempFile("fpngeEncoder", ".png");
 
             FileOutputStream fileOutputStream = new FileOutputStream(file);
             fileOutputStream.write(data);

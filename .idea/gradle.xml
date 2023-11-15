@@ -13,6 +13,8 @@
             <option value="$PROJECT_DIR$/benchmark" />
             <option value="$PROJECT_DIR$/fpng" />
             <option value="$PROJECT_DIR$/fpng-java" />
+            <option value="$PROJECT_DIR$/fpnge" />
+            <option value="$PROJECT_DIR$/fpnge-java" />
           </set>
         </option>
       </GradleProjectSettings>
