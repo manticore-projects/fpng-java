@@ -1,6 +1,6 @@
 plugins {
     id 'java-library'
-    id "me.champeau.jmh" version "0.7.2"
+    id "me.champeau.jmh" version "latest.release"
 }
 
 group = 'com.manticore.tools'
@@ -13,7 +13,7 @@ repositories {
 dependencies {
     jmh project(":fpng-java")
     jmh project(":fpnge-java")
-    jmh 'com.pngencoder:pngencoder:0.14.0'
+    jmh 'com.pngencoder:pngencoder:+'
     jmh files('lib/pngencoder-1.jar')
 
     jmh 'commons-io:commons-io:+'
@@ -31,6 +31,12 @@ jmh {
     iterations = 3
     fork = 1
     benchmarkMode = ['avgt']
+    //jvmArgs = ['-XX:+UseSerialGC','-Xms512M','-Xmx2G','-XX:+UseStringDeduplication', '-XX:-UseJVMCICompiler', '-XX:-EnableJVMCI']
+    jvmArgs = ['-XX:+UseSerialGC','-Xms512M','-Xmx2G','-XX:+UseStringDeduplication']
+    //profilers = ['perf']
+
+    //includes = ['FPNGEBenchmark']
+    excludes = ['ByteBufferBenchmark']
 }
 
 jmhRunBytecodeGenerator.dependsOn(':fpng-java:build', ':fpnge-java:build')

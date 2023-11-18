@@ -1,5 +1,6 @@
 # fpng-java
 Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng) and the AVX optimized native [FPNGE Encoder](https://github.com/veluca93/fpnge).
+It contains an additional SSE translation from Java's ABGR 4 byte into the expected RGBA 4 byte arrays (AVX has been tested to be slower, likely due to need for a 32-bit alignment.) 
 
 [![Java CI with Gradle](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)
 
@@ -29,50 +30,48 @@ There is a JMH based benchmark suite comparing other Java PNG Encoders, using on
 gradle clean assemble jmh
 ```
 
-Interestingly the Benchmarks heavily depend on the JDK, with GraalVM 11 or 21 being much faster for the Native Libs than OpenJDK 11/21 or JetBrains JDK 11/21. This affects only the Native Libs and we will have to investigate the reason.
 
 ```text
-GRAAL VM 11
-
+GRAAL VM 21
 Benchmark                                           (imageName)  Mode  Cnt     Score    Error  Units
-FPNGEBenchmark.encode                               example.png  avgt    3     5.895 ±  0.369  ms/op
-FPNGEBenchmark.encode                   looklet-look-scale6.png  avgt    3   242.326 ±  3.215  ms/op
-FPNGEncoderBenchmark.encode                         example.png  avgt    3     7.267 ±  4.725  ms/op
-FPNGEncoderBenchmark.encode             looklet-look-scale6.png  avgt    3   353.969 ± 14.833  ms/op
-ImageIOEncoderBenchmark.encode                      example.png  avgt    3    54.096 ±  0.742  ms/op
-ImageIOEncoderBenchmark.encode          looklet-look-scale6.png  avgt    3  1285.791 ± 14.237  ms/op
-ObjectPlanetPNGEncoderBenchmark.encode              example.png  avgt    3    25.882 ±  0.670  ms/op
-ObjectPlanetPNGEncoderBenchmark.encode  looklet-look-scale6.png  avgt    3   639.232 ± 23.186  ms/op
-PNGEncoderBenchmark.encode                          example.png  avgt    3    29.218 ±  0.965  ms/op
-PNGEncoderBenchmark.encode              looklet-look-scale6.png  avgt    3   573.997 ± 16.234  ms/op
-PNGEncoderBenchmark.encodeFastest                   example.png  avgt    3    17.628 ±  0.511  ms/op
-PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   362.208 ±  4.346  ms/op
+FPNGEBenchmark.encode                               example.png  avgt    3     3.147 ±  0.062  ms/op
+FPNGEBenchmark.encode                   looklet-look-scale6.png  avgt    3   188.284 ± 84.303  ms/op
+FPNGEncoderBenchmark.encode                         example.png  avgt    3     6.310 ±  0.115  ms/op
+FPNGEncoderBenchmark.encode             looklet-look-scale6.png  avgt    3   322.365 ± 91.968  ms/op
+ImageIOEncoderBenchmark.encode                      example.png  avgt    3    48.085 ±  3.540  ms/op
+ImageIOEncoderBenchmark.encode          looklet-look-scale6.png  avgt    3  1239.409 ± 15.437  ms/op
+ObjectPlanetPNGEncoderBenchmark.encode              example.png  avgt    3    32.568 ±  1.147  ms/op
+ObjectPlanetPNGEncoderBenchmark.encode  looklet-look-scale6.png  avgt    3   876.725 ± 52.697  ms/op
+PNGEncoderBenchmark.encode                          example.png  avgt    3    29.178 ±  0.287  ms/op
+PNGEncoderBenchmark.encode              looklet-look-scale6.png  avgt    3   572.452 ± 17.830  ms/op
+PNGEncoderBenchmark.encodeFastest                   example.png  avgt    3    17.461 ±  2.498  ms/op
+PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   367.480 ±  6.410  ms/op
 ```
 
 ```text
-JetBrains JDK 21
-
-Benchmark                                           (imageName)  Mode  Cnt     Score    Error  Units
-FPNGEBenchmark.encode                               example.png  avgt    3    11.688 ±  0.285  ms/op
-FPNGEBenchmark.encode                   looklet-look-scale6.png  avgt    3   530.782 ± 39.565  ms/op
-FPNGEncoderBenchmark.encode                         example.png  avgt    3    13.006 ±  0.230  ms/op
-FPNGEncoderBenchmark.encode             looklet-look-scale6.png  avgt    3   650.211 ± 38.461  ms/op
-ImageIOEncoderBenchmark.encode                      example.png  avgt    3    56.187 ±  1.557  ms/op
-ImageIOEncoderBenchmark.encode          looklet-look-scale6.png  avgt    3  1359.781 ± 54.542  ms/op
-ObjectPlanetPNGEncoderBenchmark.encode              example.png  avgt    3    32.995 ±  1.255  ms/op
-ObjectPlanetPNGEncoderBenchmark.encode  looklet-look-scale6.png  avgt    3   872.825 ± 25.337  ms/op
-PNGEncoderBenchmark.encode                          example.png  avgt    3    29.636 ±  2.403  ms/op
-PNGEncoderBenchmark.encode              looklet-look-scale6.png  avgt    3   573.655 ± 50.611  ms/op
-PNGEncoderBenchmark.encodeFastest                   example.png  avgt    3    17.548 ±  0.858  ms/op
-PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   358.136 ± 22.376  ms/op
+GRAALVM 11
+Benchmark                                           (imageName)  Mode  Cnt     Score     Error  Units
+FPNGEBenchmark.encode                               example.png  avgt    3     2.731 ±   0.018  ms/op
+FPNGEBenchmark.encode                   looklet-look-scale6.png  avgt    3   182.363 ± 159.723  ms/op
+FPNGEncoderBenchmark.encode                         example.png  avgt    3     6.491 ±   0.526  ms/op
+FPNGEncoderBenchmark.encode             looklet-look-scale6.png  avgt    3   313.017 ±  71.408  ms/op
+ImageIOEncoderBenchmark.encode                      example.png  avgt    3    47.353 ±   3.971  ms/op
+ImageIOEncoderBenchmark.encode          looklet-look-scale6.png  avgt    3  1199.796 ±  47.642  ms/op
+ObjectPlanetPNGEncoderBenchmark.encode              example.png  avgt    3    28.079 ±   0.101  ms/op
+ObjectPlanetPNGEncoderBenchmark.encode  looklet-look-scale6.png  avgt    3   660.480 ±  79.759  ms/op
+PNGEncoderBenchmark.encode                          example.png  avgt    3    29.172 ±   0.288  ms/op
+PNGEncoderBenchmark.encode              looklet-look-scale6.png  avgt    3   574.485 ±  16.903  ms/op
+PNGEncoderBenchmark.encodeFastest                   example.png  avgt    3    17.516 ±   0.135  ms/op
+PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   360.417 ±   8.995  ms/op
 ```
 
 # To Do
 
 - [ ] Right now we compare only the speed without paying attention to the size of the encoded image. We will need to calibrate the benchmarks to compare only modes producing similar sizes. Also, 24bit vs 32bit modes need to be honored.
-- [ ] Benchmark the translation of the `BufferedImage` into the `RGBA` byte array, which is right now Pixel based and likely slow.
+- [X] Benchmark the translation of the `BufferedImage` into the `RGBA` byte array, which is right now Pixel based and likely slow.
 - [ ] Further we should add more test images for the "screen capturing" use case, which may yield different outcomes. Right now only photo-realistic images are tested.
 - [ ] Publish Artifact to Maven/Sonatype.
 - [ ] Fat/Ueber JAR with support for the 4 major Operating Systems.
 - [ ] Drop slow JNA and replace with a JNI implementation.
-- [ ] Investigate the difference in performance on Graal JDK vs OpenJDK or JetBrains JDK.
+- [X] Investigate the difference in performance on Graal JDK vs OpenJDK or JetBrains JDK.
+- [ ] Try profiling with PGO.
