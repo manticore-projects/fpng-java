@@ -1,6 +1,6 @@
 # fpng-java
 Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng) and the AVX optimized native [FPNGE Encoder](https://github.com/veluca93/fpnge).
-It contains an additional SSE translation from Java's ABGR 4 byte into the expected RGBA 4 byte arrays (AVX has been tested to be slower, likely due to need for a 32-bit alignment.) 
+It contains an additional SSE translation from Java's ABGR 4 byte into the expected RGBA 4 byte arrays (AVX has been tested to be slower, likely due to need for a 32-bit alignment.)
 
 [![Java CI with Gradle](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)
 
