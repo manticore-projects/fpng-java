@@ -8,6 +8,8 @@ import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferInt;
 import java.util.Arrays;
 import java.util.List;
 
@@ -59,6 +61,20 @@ public interface FPNGE extends Library {
 
     void releaseVectorData(CharArray data);
 
+    public static void swapIntBytes(byte[] bytes) {
+        assert bytes.length % 4 == 0;
+        for (int i = 0; i < bytes.length; i += 4) {
+            // swap 0 and 3
+            byte tmp = bytes[i];
+            bytes[i] = bytes[i + 3];
+            bytes[i + 3] = tmp;
+            // swap 1 and 2
+            byte tmp2 = bytes[i + 1];
+            bytes[i + 1] = bytes[i + 2];
+            bytes[i + 2] = tmp2;
+        }
+    }
+
     public static byte[] encode(BufferedImage image, int numberOfChannels, int flags) {
 
         // Native.setProtected(true);
@@ -72,31 +88,21 @@ public interface FPNGE extends Library {
         // Get image dimensions
         int width = image.getWidth();
         int height = image.getHeight();
+        BufferedImage convertedImage = new BufferedImage(
+                width,
+                height,
+                BufferedImage.TYPE_4BYTE_ABGR
+        );
 
-        // Get the pixel data as an integer array
-        int[] pixels = image.getRGB(0, 0, width, height, null, 0, width);
+        // Draw the original image onto the new image
+        convertedImage.getGraphics().drawImage(image, 0, 0, null);
 
-        // Create a byte array to store RGBA values
-        byte[] rgbaArray = new byte[width * height * 4];
+        // get the 4BYTE ABGR Array
+        DataBufferByte dataBuffer = (DataBufferByte) convertedImage.getRaster().getDataBuffer();
+        byte[] rgbaArray = dataBuffer.getData();
 
-        // Extract RGBA values from each pixel
-        for (int i = 0; i < pixels.length; i++) {
-            int pixel = pixels[i];
-            rgbaArray[i * 4] = (byte) ((pixel >> 16) & 0xFF); // Red
-            rgbaArray[i * 4 + 1] = (byte) ((pixel >> 8) & 0xFF); // Green
-            rgbaArray[i * 4 + 2] = (byte) (pixel & 0xFF); // Blue
-            rgbaArray[i * 4 + 3] = (byte) ((pixel >> 24) & 0xFF); // Alpha
-        }
-
-        // gives a BGRA bytestream
-        // DataBufferByte dataBuffer = (DataBufferByte) image.getRaster().getDataBuffer();
-        // byte[] rgbaArray = dataBuffer.getData();
-
-        long start = System.currentTimeMillis();
-
-        Pointer pImage = new Memory(rgbaArray.length);
-        // Copy the content of the byte array to native memory
-        pImage.write(0, rgbaArray, 0, rgbaArray.length);
+        // swap the bytes to RGBA (this maybe could be done in C faster)
+        // swapIntBytes(rgbaArray);
 
         int numChannels = 4;
 

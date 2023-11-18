@@ -37,5 +37,5 @@ java {
 }
 
 compileJava.dependsOn {
-    ':fpng:build'
+    ':fpng:assemble'
 }

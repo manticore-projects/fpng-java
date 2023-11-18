@@ -3208,9 +3208,22 @@ extern "C" {
         delete[] data.data;
     }
 
+    void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
+        const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
+
+        for (int i = 0; i < numPixels; i += 4) {
+            __m128i abgr = _mm_load_si128((__m128i*)(pImage + i * 4));
+            __m128i rgba = _mm_shuffle_epi8(abgr, shuffleMask);
+            _mm_store_si128((__m128i*)(pImage + i * 4), rgba);
+        }
+    }
+
     ByteArray* fpng_encode_image_to_memory(const void* pImage, uint32_t w, uint32_t h, uint32_t num_chans,  uint32_t flags = 0) {
         // Vector frees itself
         std::vector<uint8_t> out_buf;
+
+        swapChannelsABGRtoRGBA( (unsigned char*) pImage, w * h);
+
         bool result = fpng::fpng_encode_image_to_memory( pImage, w, h, num_chans, out_buf, flags);
 
         ByteArray* data = (ByteArray*) malloc( sizeof(ByteArray) );

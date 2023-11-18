@@ -19,6 +19,6 @@ library {
 }
 
 tasks.withType(CppCompile).configureEach {
-    compilerArgs = ['-fPIC',  '-O3', '-march=native', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-fno-strict-aliasing']
+    compilerArgs = ['-fPIC',  '-O3', '-march=native', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-mavx2', '-fno-strict-aliasing']
 }
 

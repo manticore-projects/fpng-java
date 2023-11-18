@@ -16,7 +16,7 @@ class FPNGETest {
     void encodeTest() {
         // Load the PNG file into a BufferedImage
         try (
-                InputStream inputStream = ClassLoader.getSystemResourceAsStream("example.png");
+                InputStream inputStream = ClassLoader.getSystemResourceAsStream("example.png")
         ) {
             assert inputStream!=null;
             BufferedImage image = ImageIO.read(inputStream);

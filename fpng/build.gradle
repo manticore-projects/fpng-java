@@ -18,7 +18,21 @@ library {
     ]
 }
 
+// PGO Prepare
+// -fprofile-dir=/data/pgo -fprofile-generate=/data/pgo
+
+// PGO Apply
+// -fprofile-dir=/data/pgo -fprofile-use=/data/pgo -fprofile-correction
+
 tasks.withType(CppCompile).configureEach {
-    compilerArgs = ['-fPIC',  '-O3', '-march=native', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-fno-strict-aliasing']
+    //compilerArgs = ['-fPIC',  '-O3', '-march=native', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-fno-strict-aliasing', '-fprofile-dir=data/pgo', '-fprofile-generate=data/pgo']
+    //compilerArgs = ['-fPIC',  '-O3', '-march=native', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-fno-strict-aliasing', '-fprofile-dir=data/pgo', '-fprofile-use=data/pgo', '-fprofile-correction']
+    compilerArgs = ['-fPIC',  '-O3', '-march=native', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-fno-strict-aliasing' ]
+    debuggable = false
+    optimized = true
+}
+
+tasks.withType(LinkSharedLibrary).configureEach {
+    linkerArgs = ['-lgcov', '--coverage']
 }
 
