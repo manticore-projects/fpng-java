@@ -10,7 +10,7 @@ repositories {
 }
 
 dependencies {
-    //implementation project(':fpng')
+    implementation project(':encoder-java')
     implementation 'net.java.dev.jna:jna:+'
     implementation 'net.java.dev.jna:jna-platform:+'
 
@@ -21,6 +21,13 @@ dependencies {
 }
 
 test {
+    beforeSuite {
+        copy {
+            from '../benchmark/src/test/resources/'
+            into 'build/resources/test'
+            include '*.png'
+        }
+    }
     useJUnitPlatform()
 }
 
@@ -37,5 +44,5 @@ java {
 }
 
 compileJava.dependsOn {
-    ':fpng:assemble'
+    ':fpng:copyNativeLib'
 }

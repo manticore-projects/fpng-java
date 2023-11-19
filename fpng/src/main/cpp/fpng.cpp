@@ -3203,11 +3203,6 @@ extern "C" {
         size_t size;
     } ByteArray;
 
-    void releaseVectorData(ByteArray data) {
-        // Release the allocated memory when it's no longer needed
-        delete[] data.data;
-    }
-
     void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
         const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
 
@@ -3222,7 +3217,11 @@ extern "C" {
         // Vector frees itself
         std::vector<uint8_t> out_buf;
 
-        swapChannelsABGRtoRGBA( (unsigned char*) pImage, w * h);
+        // 4 channels will arrive as BufferedImage.TYPE_4BYTE_ABGR
+        // 3 channels will arrive as BufferedImage.TYPE_3BYTE_BGR
+        if (num_chans==(uint32_t) 4) {
+            swapChannelsABGRtoRGBA( (unsigned char*) pImage, w * h);
+        }
 
         bool result = fpng::fpng_encode_image_to_memory( pImage, w, h, num_chans, out_buf, flags);
 

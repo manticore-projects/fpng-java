@@ -1595,12 +1595,6 @@ extern "C" typedef struct {
    size_t size;
 } CharArray;
 
-extern "C" void releaseVectorData(CharArray data) {
-  // Release the allocated memory when it's no longer needed
-  delete[] data.data;
-}
-
-
 void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
     const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
 
@@ -1648,7 +1642,11 @@ extern "C" CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels
       // Call the channel swapping function
       // swapChannelsABGRtoRGBA_AVX(alignedArray, width * height);
 
-      swapChannelsABGRtoRGBA(pImage, width * height);
+      // 4 channels will arrive as BufferedImage.TYPE_4BYTE_ABGR
+      // 3 channels will arrive as BufferedImage.TYPE_3BYTE_BGR
+      if (num_channels==(uint32_t) 4) {
+          swapChannelsABGRtoRGBA( (unsigned char*) pImage, width * height);
+      }
 
       CharArray* data = (CharArray*) malloc( sizeof(CharArray) );
             data->size = FPNGEOutputAllocSize(bytes_per_channel, num_channels, width, height);

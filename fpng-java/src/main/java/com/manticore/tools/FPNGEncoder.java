@@ -8,45 +8,31 @@ import com.sun.jna.Structure;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
+import java.io.File;
+import java.io.IOException;
+import java.net.URI;
+import java.net.URISyntaxException;
+import java.nio.file.FileVisitOption;
+import java.nio.file.FileVisitResult;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.StandardCopyOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
+import java.util.EnumSet;
 import java.util.List;
 
-public interface FPNGEncoder extends Library {
-    FPNGEncoder ENCODER = (FPNGEncoder) Native.load("../fpng/build/lib/main/debug/shared/linux/x86-64/libfpng.so", FPNGEncoder.class);
+public interface FPNGEncoder extends Encoder {
+    FPNGEncoder ENCODER = (FPNGEncoder) Encoder.load(FPNGEncoder.class, "libfpng");
 
     void fpng_init();
 
-    public static class ByteArray extends Structure {
-        public Pointer data;
-        public NativeLong size;
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("data", "size");
-        }
-    }
-
     ByteArray fpng_encode_image_to_memory(byte[] pImage, int w, int h, int num_chans, int flags);
 
-    void releaseVectorData(ByteArray data);
-
-    public static void swapIntBytes(byte[] bytes) {
-        assert bytes.length % 4 == 0;
-        for (int i = 0; i < bytes.length; i += 4) {
-            // swap 0 and 3
-            byte tmp = bytes[i];
-            bytes[i] = bytes[i + 3];
-            bytes[i + 3] = tmp;
-            // swap 1 and 2
-            byte tmp2 = bytes[i + 1];
-            bytes[i + 1] = bytes[i + 2];
-            bytes[i + 2] = tmp2;
-        }
-    }
-
     public static byte[] encode(BufferedImage image, int numberOfChannels, int flags) {
-
-        // Native.setProtected(true);
+        ENCODER.fpng_init();
 
         /*
         num_chans must be 3 or 4. There must be w*3*h or w*4*h bytes pointed to by pImage.
@@ -54,33 +40,11 @@ public interface FPNGEncoder extends Library {
         There is no automatic determination if the image actually uses an alpha channel, so if you call it with 4 you will always get a 32bpp .PNG file.
          */
 
-        // Get image dimensions
-        int width = image.getWidth();
-        int height = image.getHeight();
+        byte[] rgbaArray = Encoder.getRGBABytes(image, numberOfChannels);
 
-        BufferedImage convertedImage = new BufferedImage(
-                width,
-                height,
-                BufferedImage.TYPE_4BYTE_ABGR
-        );
+        ByteArray byteArray = ENCODER.fpng_encode_image_to_memory(rgbaArray, image.getWidth(), image.getHeight(), numberOfChannels,  0);
+        byte[] data = byteArray.data.getByteArray(0, byteArray.size.intValue() );
 
-        // Draw the original image onto the new image
-        convertedImage.getGraphics().drawImage(image, 0, 0, null);
-
-        // get the 4BYTE ABGR Array
-        DataBufferByte dataBuffer = (DataBufferByte) convertedImage.getRaster().getDataBuffer();
-        byte[] rgbaArray = dataBuffer.getData();
-
-        // swap the bytes to RGBA (this maybe could be done in C faster)
-        // swapIntBytes(rgbaArray);
-
-        int numChannels = 4;
-
-        ENCODER.fpng_init();
-
-        ByteArray byteArray = ENCODER.fpng_encode_image_to_memory(rgbaArray, width, height, numChannels,  0);
-        long size = byteArray.size.longValue();
-        byte[] data = byteArray.data.getByteArray(0, (int) size);
         Native.free(Pointer.nativeValue(byteArray.data));
 
         return data;

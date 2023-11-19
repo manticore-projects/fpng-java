@@ -27,12 +27,22 @@ library {
 tasks.withType(CppCompile).configureEach {
     //compilerArgs = ['-fPIC',  '-O3', '-march=native', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-fno-strict-aliasing', '-fprofile-dir=data/pgo', '-fprofile-generate=data/pgo']
     //compilerArgs = ['-fPIC',  '-O3', '-march=native', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-fno-strict-aliasing', '-fprofile-dir=data/pgo', '-fprofile-use=data/pgo', '-fprofile-correction']
-    compilerArgs = ['-fPIC',  '-O3', '-march=native', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-fno-strict-aliasing' ]
+    compilerArgs = ['-fPIC',  '-O3', '-march=native', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-mavx', '-fno-strict-aliasing' ]
     debuggable = false
     optimized = true
 }
 
 tasks.withType(LinkSharedLibrary).configureEach {
     linkerArgs = ['-lgcov', '--coverage']
+}
+
+tasks.register('copyNativeLib', Copy) {
+    dependsOn assemble
+    from './build/lib/main/debug/shared'
+    from './build/lib/main/release/shared'
+    into '../fpng-java/build/resources/main/lib'
+
+    // the native library file extensions on different platforms
+    include '**/*.dll', '**/*.so', 'build/lib/**/*.dylib'
 }
 
