@@ -240,8 +240,6 @@ tasks.withType(Checkstyle).configureEach {
 tasks.register('gitChangelogTask', GitChangelogTask) {
     fromRepo = file("$projectDir")
     file = new File("${projectDir}/src/site/sphinx/changelog.rst")
-    fromRef = "4.0"
-    //toRef = "1.1";
 
     // switch off the formatter since the indentation matters for Mark-down
     // @formatter:off
