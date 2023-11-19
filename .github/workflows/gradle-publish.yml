@@ -39,6 +39,12 @@ jobs:
       with:
         arguments: build
 
+    - id: install-secret-key
+      name: Install gpg secret key
+      run: |
+           # Install gpg secret key
+           cat <(echo -e "${{ secrets.OSSRH_GPG_SECRET_KEY }}") | gpg --batch --import
+
     # The USERNAME and TOKEN need to correspond to the credentials environment variables used in
     # the publishing section of your build.gradle
     - name: Publish to GitHub Packages
