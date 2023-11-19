@@ -32,6 +32,7 @@ jobs:
       run: |
            # Install gpg secret key
            cat <(echo -e "${{ secrets.OSSRH_GPG_SECRET_KEY }}") | gpg --batch --import
+           gpg --keyserver hkp://keyserver.ubuntu.com:80 --recv DDF11B37
            gpg --keyring secring.gpg --export-secret-keys > ~/.gnupg/secring.gpg
            
     - name: Set up JDK 11
