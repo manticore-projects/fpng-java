@@ -80,14 +80,14 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: fpng
-          path: fpng-java/build/resources/main/lib
+          path: fpng/build/lib/main/debug/shared
 
       - name: Download FPNGE artifacts
         if: matrix.os == 'ubuntu-latest'
         uses: actions/download-artifact@v3
         with:
           name: fpnge
-          path: fpnge-java/build/resources/main/lib
+          path: fpnge/build/lib/main/debug/shared
 
       - id: install-gradle-properties
         name: Install Gradle Properties from Secret
