@@ -23,59 +23,89 @@ jobs:
 
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ windows-latest, macos-latest, ubuntu-latest ]
 
     permissions:
       contents: read
       packages: write
 
     steps:
-    - uses: actions/checkout@v3
+      - uses: actions/checkout@v3
 
-    - name: Set up JDK 11
-      uses: actions/setup-java@v3
-      with:
-        java-version: '11'
-        distribution: 'temurin'
-        server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
-        settings-path: ${{ github.workspace }} # location for the settings.xml file
+      - name: Set up JDK 11
+        uses: actions/setup-java@v3
+        with:
+          java-version: '11'
+          distribution: 'temurin'
+          server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
+          settings-path: ${{ github.workspace }} # location for the settings.xml file
 
-    - name: Build with Gradle
-      uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
-      with:
-        arguments: :fpng:copyNativeLib  :fpnge:copyNativeLib
+      - name: Build with Gradle
+        uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
+        with:
+          arguments: :fpng:copyNativeLib  :fpnge:copyNativeLib
 
-    - name: Build with Gradle
-      if: matrix.os == 'ubuntu-latest'
-      uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
-      with:
-        arguments: build
+      - name: Upload FPNG artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: fpng
+          path: |
+            fpng/build/lib/**/*.dylib
+            fpng/build/lib/**/*.dll
+            fpng/build/lib/**/*.so
 
-    - id: install-gradle-properties
-      name: Install Gradle Properties from Secret
-      if: matrix.os == 'ubuntu-latest'
-      env:
-        GRADLE_PROPERTIES: ${{ secrets.GRADLE_PROPERTIES }}
-        shell: bash
-      run: |
-        mkdir -p ~/.gradle/
-        echo "GRADLE_USER_HOME=${HOME}/.gradle" >> $GITHUB_ENV
-        echo "${GRADLE_PROPERTIES}" > ~/.gradle/gradle.properties        
+      - name: Upload FPNGE artifacts
+        uses: actions/upload-artifact@v3
+        with:
+          name: fpnge
+          path: |
+            fpnge/build/lib/**/*.dylib
+            fpnge/build/lib/**/*.dll
+            fpnge/build/lib/**/*.so
 
-    - id: install-secret-key
-      name: Install GPG Key from Secret
-      if: matrix.os == 'ubuntu-latest'
-      run: |
-        cat <(echo -e "${{ secrets.OSSRH_GPG_SECRET_KEY }}") | gpg --batch --import
-        gpg --export-secret-keys -o /home/runner/.gnupg/secring.gpg
+      - name: Download FPNG artifacts
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/download-artifact@v3
+        with:
+          path: fpng-java/build/resources/main/lib
 
-    # The USERNAME and TOKEN need to correspond to the credentials environment variables used in
-    # the publishing section of your build.gradle
-    - name: Publish to GitHub Packages
-      if: matrix.os == 'ubuntu-latest'
-      uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
-      with:
-        arguments: :fpng-java:publish  :fpnge-java:publish
-      env:
-        USERNAME: ${{ github.actor }}
-        TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      - name: Download FPNGE artifacts
+        if: matrix.os == 'ubuntu-latest'
+        uses: actions/download-artifact@v3
+        with:
+          path: fpnge-java/build/resources/main/lib
+
+      - name: Build with Gradle
+        if: matrix.os == 'ubuntu-latest'
+        uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
+        with:
+          arguments: :fpng-java:compileJava  :fpnge-java:compileJava
+
+      - id: install-gradle-properties
+        name: Install Gradle Properties from Secret
+        if: matrix.os == 'ubuntu-latest'
+        env:
+          GRADLE_PROPERTIES: ${{ secrets.GRADLE_PROPERTIES }}
+          shell: bash
+        run: |
+          mkdir -p ~/.gradle/
+          echo "GRADLE_USER_HOME=${HOME}/.gradle" >> $GITHUB_ENV
+          echo "${GRADLE_PROPERTIES}" > ~/.gradle/gradle.properties        
+
+      - id: install-secret-key
+        name: Install GPG Key from Secret
+        if: matrix.os == 'ubuntu-latest'
+        run: |
+          cat <(echo -e "${{ secrets.OSSRH_GPG_SECRET_KEY }}") | gpg --batch --import
+          gpg --export-secret-keys -o /home/runner/.gnupg/secring.gpg
+
+      # The USERNAME and TOKEN need to correspond to the credentials environment variables used in
+      # the publishing section of your build.gradle
+      - name: Publish to GitHub Packages
+        if: matrix.os == 'ubuntu-latest'
+        uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
+        with:
+          arguments: :fpng-java:publish  :fpnge-java:publish
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
