@@ -43,13 +43,13 @@ jobs:
       - name: Build FPNG Native Libs
         uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
         with:
-          arguments: :fpng:copyNativeLib
+          arguments: :fpng:assemble
 
       - name: Build FPNGE Native Libs
         if: matrix.os != 'windows-latest'
         uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
         with:
-          arguments: :fpnge:copyNativeLib
+          arguments: :fpnge:assemble
 
       - name: Upload FPNG artifacts
         uses: actions/upload-artifact@v3
@@ -69,25 +69,19 @@ jobs:
             fpnge/build/lib/main/debug/shared/**/*.dll
             fpnge/build/lib/main/debug/shared/**/*.so
 
-      - name: Build with Gradle
-        if: matrix.os == 'ubuntu-latest'
-        uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
-        with:
-          arguments: :fpng-java:compileJava  :fpnge-java:compileJava
-
       - name: Download FPNG artifacts
         if: matrix.os == 'ubuntu-latest'
         uses: actions/download-artifact@v3
         with:
           name: fpng
-          path: fpng/build/lib/main/debug/shared
+          path: fpng-java/build/resources/main/lib
 
       - name: Download FPNGE artifacts
         if: matrix.os == 'ubuntu-latest'
         uses: actions/download-artifact@v3
         with:
           name: fpnge
-          path: fpnge/build/lib/main/debug/shared
+          path: fpnge-java/build/resources/main/lib
 
       - id: install-gradle-properties
         name: Install Gradle Properties from Secret
