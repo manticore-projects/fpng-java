@@ -82,7 +82,7 @@
 #define SIMD_WIDTH 16
 #define SIMD_MASK 0xffffU
 #else
-#error Requires SSE4.1 support minium
+#error Requires SSE4.1 support minimum
 #endif
 
 namespace {
@@ -1605,25 +1605,25 @@ void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
     }
 }
 
-void copyUnalignedToAligned(void* src, void** alignedDst, size_t size, size_t alignment) {
-    // Allocate aligned memory
-    *alignedDst = _mm_malloc(size, alignment);
+//void copyUnalignedToAligned(void* src, void** alignedDst, size_t size, size_t alignment) {
+//    // Allocate aligned memory
+//    *alignedDst = _mm_malloc(size, alignment);
+//
+//    // Copy unaligned data to aligned buffer
+//    memcpy(*alignedDst, src, size);
+//}
 
-    // Copy unaligned data to aligned buffer
-    memcpy(*alignedDst, src, size);
-}
-
-void swapChannelsABGRtoRGBA_AVX(unsigned char* pImage, int numPixels ) {
-      const __m256i shuffleMask = _mm256_set_epi8 (
-            12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
-            12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3
-        );
-       for (int i = 0; i < numPixels; i += 8) {
-                  __m256i abgr = _mm256_load_si256((__m256i*)(pImage + i * 4));
-                  __m256i rgba = _mm256_shuffle_epi8(abgr, shuffleMask);
-                  _mm256_store_si256((__m256i*)(pImage + i * 4), rgba);
-          }
-   }
+//void swapChannelsABGRtoRGBA_AVX(unsigned char* pImage, int numPixels ) {
+//      const __m256i shuffleMask = _mm256_set_epi8 (
+//            12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
+//            12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3
+//        );
+//       for (int i = 0; i < numPixels; i += 8) {
+//                  __m256i abgr = _mm256_load_si256((__m256i*)(pImage + i * 4));
+//                  __m256i rgba = _mm256_shuffle_epi8(abgr, shuffleMask);
+//                  _mm256_store_si256((__m256i*)(pImage + i * 4), rgba);
+//          }
+//   }
 
 extern "C" CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels,
                               unsigned char* pImage, size_t width, size_t height) {
