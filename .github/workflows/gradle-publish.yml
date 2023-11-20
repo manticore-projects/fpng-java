@@ -73,12 +73,14 @@ jobs:
         if: matrix.os == 'ubuntu-latest'
         uses: actions/download-artifact@v3
         with:
+          name: fpng
           path: fpng-java/build/resources/main/lib
 
       - name: Download FPNGE artifacts
         if: matrix.os == 'ubuntu-latest'
         uses: actions/download-artifact@v3
         with:
+          name: fpnge
           path: fpnge-java/build/resources/main/lib
 
       - name: Build with Gradle
