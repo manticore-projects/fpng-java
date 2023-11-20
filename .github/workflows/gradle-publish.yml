@@ -74,24 +74,14 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: fpng
-          path: fpng-java/build/resources/main/lib
-
-      - name: Display structure of downloaded files
-        if: matrix.os == 'ubuntu-latest'
-        run: ls -R
-        working-directory: fpng-java/build/resources/main/lib
+          path: /home/runner/work/fpng-java/fpng-java/fpng-java/build/resources/main/lib
 
       - name: Download FPNGE artifacts
         if: matrix.os == 'ubuntu-latest'
         uses: actions/download-artifact@v3
         with:
           name: fpnge
-          path: fpnge-java/build/resources/main/lib
-
-      - name: Display structure of downloaded files
-        if: matrix.os == 'ubuntu-latest'
-        run: ls -R
-        working-directory: fpnge-java/build/resources/main/lib
+          path: /home/runner/work/fpng-java/fpng-java/fpnge-java/build/resources/main/lib
 
       - id: install-gradle-properties
         name: Install Gradle Properties from Secret
@@ -100,8 +90,8 @@ jobs:
           GRADLE_PROPERTIES: ${{ secrets.GRADLE_PROPERTIES }}
           shell: bash
         run: |
-          find fpng-java/build/resources/main/lib/** -type f -printf "%T@ %p\n" | sort -nr | cut -d\  -f2
-          find fpnge-java/build/resources/main/lib/** -type f -printf "%T@ %p\n" | sort -nr | cut -d\  -f2
+          find /home/runner/work/fpng-java/fpng-java/fpng-java/build/resources/main/lib/** -type f -printf "%T@ %p\n" | sort -nr | cut -d\  -f2
+          find /home/runner/work/fpng-java/fpng-java/fpnge-java/build/resources/main/lib/** -type f -printf "%T@ %p\n" | sort -nr | cut -d\  -f2
           mkdir -p ~/.gradle/
           echo "GRADLE_USER_HOME=${HOME}/.gradle" >> $GITHUB_ENV
           echo "${GRADLE_PROPERTIES}" > ~/.gradle/gradle.properties        
