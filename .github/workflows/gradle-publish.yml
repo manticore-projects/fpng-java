@@ -90,7 +90,8 @@ jobs:
           GRADLE_PROPERTIES: ${{ secrets.GRADLE_PROPERTIES }}
           shell: bash
         run: |
-          ls -lh fpng-java/build/resources/main/lib/**
+          find fpng-java/build/resources/main/lib/** -type f -printf "%T@ %p\n" | sort -nr | cut -d\  -f2
+          find fpnge-java/build/resources/main/lib/** -type f -printf "%T@ %p\n" | sort -nr | cut -d\  -f2
           mkdir -p ~/.gradle/
           echo "GRADLE_USER_HOME=${HOME}/.gradle" >> $GITHUB_ENV
           echo "${GRADLE_PROPERTIES}" > ~/.gradle/gradle.properties        
