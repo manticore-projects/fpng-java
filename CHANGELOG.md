@@ -2,16 +2,22 @@
 
 Changelog of fpng-java.
 
+## 0.99.0 (2023-11-20)
+
+### Bug Fixes
+
+-  FPNGE on Windows/MVCC ([43d29](https://github.com/manticore-projects/fpng-java/commit/43d29a81c8170b7) Andreas Reichel)  
+
 ## 0.11 (2023-11-20)
 
 ### Features
 
--  add AVX optimized FPNGE ([92c14](https://github.com/manticore-projects/fpng-java/commit/92c146963553848) Andreas Reichel)
+-  add AVX optimized FPNGE ([92c14](https://github.com/manticore-projects/fpng-java/commit/92c146963553848) Andreas Reichel)  
 
 ### Bug Fixes
 
--  dependency syntax ([b0a94](https://github.com/manticore-projects/fpng-java/commit/b0a94dddb53da83) Andreas Reichel)
--  write directly into the CharArray and avoid a `memcpy` ([3eddd](https://github.com/manticore-projects/fpng-java/commit/3eddd701083795e) Andreas Reichel)
+-  dependency syntax ([b0a94](https://github.com/manticore-projects/fpng-java/commit/b0a94dddb53da83) Andreas Reichel)  
+-  write directly into the CharArray and avoid a `memcpy` ([3eddd](https://github.com/manticore-projects/fpng-java/commit/3eddd701083795e) Andreas Reichel)  
 
 ### Other changes
 
@@ -114,3 +120,5 @@ Changelog of fpng-java.
 
 
 [082b7](https://github.com/manticore-projects/fpng-java/commit/082b74ec63982e5) Andreas Reichel *2023-11-14 06:06:12*
+
+

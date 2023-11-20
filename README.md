@@ -23,7 +23,7 @@ git clone --depth 1 https://github.com/manticore-projects/fpng-java.git
 cd fpng-java
 gradle clean assemble
 ```
-The artifact will be written to: `.fpng-java/build/libs/fpng-java-0.99-SNAPSHOT.jar`
+The artifact will be written to: `.fpng-java/build/libs/fpng-java-0.99.0-SNAPSHOT.jar`
 
 
 # Benchmarks
@@ -83,12 +83,12 @@ PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   360
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpng-java</artifactId>
-        <version>0.99.1-SNAPSHOT</version>
+        <version>0.99.0-SNAPSHOT</version>
     </dependency>
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpnge-java</artifactId>
-        <version>0.99.1-SNAPSHOT</version>
+        <version>0.99.0-SNAPSHOT</version>
     </dependency>
 </dependencies>
 ```
