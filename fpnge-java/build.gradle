@@ -4,51 +4,8 @@ plugins {
     id 'signing'
 }
 
-def getVersion = { boolean considerSnapshot ->
-    Integer major = 0
-    Integer minor = 0
-    Integer patch = null
-    Integer build = null
-    def commit = null
-    def snapshot = ""
-    new ByteArrayOutputStream().withStream { os ->
-        exec {
-            args = [
-                    "--no-pager"
-                    , "describe"
-                    , "--tags"
-                    , "--always"
-                    , "--dirty=-SNAPSHOT"
-            ]
-            executable "git"
-            standardOutput = os
-        }
-        def versionStr = os.toString().trim()
-        def pattern = /(?<major>\d*)\.(?<minor>\d*)(\.(?<patch>\d*))?(-(?<build>\d*)-(?<commit>[a-zA-Z\d]*))?/
-        def matcher = versionStr =~ pattern
-        if (matcher.find()) {
-            major = matcher.group('major') as Integer
-            minor = matcher.group('minor') as Integer
-            patch = matcher.group('patch') as Integer
-            build = matcher.group('build') as Integer
-            commit = matcher.group('commit')
-        }
-
-        if (considerSnapshot && ( versionStr.endsWith('SNAPSHOT') || build!=null) ) {
-            minor++
-            if (patch!=null) patch = 0
-            snapshot = "-SNAPSHOT"
-        }
-    }
-    return patch!=null
-            ? "${major}.${minor}.${patch}${snapshot}"
-            :  "${major}.${minor}${snapshot}"
-}
-
-group = 'com.manticore.tools'
-version = getVersion( !System.getenv("RELEASE") )
 group = 'com.manticore-projects.tools'
-description = 'Java Wrapper around native AVX optimised FPNGE Encoder'
+description = 'Java Wrapper around the native AVX optimised FPNGE Encoder'
 
 repositories {
     mavenCentral()
