@@ -48,7 +48,7 @@ jobs:
       - name: Upload FPNG artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: fpng
+          name: fpng ${{matrix.os}}
           path: |
             fpng/build/lib/**/*.dylib
             fpng/build/lib/**/*.dll
@@ -57,7 +57,7 @@ jobs:
       - name: Upload FPNGE artifacts
         uses: actions/upload-artifact@v3
         with:
-          name: fpnge
+          name: fpnge ${{matrix.os}}
           path: |
             fpnge/build/lib/**/*.dylib
             fpnge/build/lib/**/*.dll
