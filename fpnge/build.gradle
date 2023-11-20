@@ -23,7 +23,7 @@ tasks.withType(CppCompile).configureEach {
     optimized = true
     compilerArgs.addAll toolChain.map { toolChain ->
         if (toolChain in VisualCpp) {
-            return  ['/Ox', '/unroll', '/std:c++17', '/std:c++17', '/W4', '/arch:SSE2', '/arch:AVX' ]
+            return  ['/Ox', '/std:c++17', '/std:c++17', '/W4', '/arch:SSE', '/arch:AVX' ]
         } else {
             return ['-fPIC', '-O3', '-march=native', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-mavx2', '-fno-strict-aliasing']
         }
