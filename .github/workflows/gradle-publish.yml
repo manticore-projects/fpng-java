@@ -19,11 +19,11 @@ permissions:
 jobs:
   build:
 
-    runs-on: ubuntu-latest
-
     strategy:
       matrix:
         os: [ windows-latest, macos-latest, ubuntu-latest ]
+
+    runs-on: ${{matrix.os}}
 
     permissions:
       contents: read
