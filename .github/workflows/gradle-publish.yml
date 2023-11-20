@@ -56,18 +56,18 @@ jobs:
         with:
           name: fpng ${{matrix.os}}
           path: |
-            fpng/build/lib/**/*.dylib
-            fpng/build/lib/**/*.dll
-            fpng/build/lib/**/*.so
+            fpng/build/lib/main/debug/shared/+*/*.dylib
+            fpng/build/lib/main/debug/shared/**/*.dll
+            fpng/build/lib/main/debug/shared/**/*.so
 
       - name: Upload FPNGE artifacts
         uses: actions/upload-artifact@v3
         with:
           name: fpnge ${{matrix.os}}
           path: |
-            fpnge/build/lib/**/*.dylib
-            fpnge/build/lib/**/*.dll
-            fpnge/build/lib/**/*.so
+            fpnge/build/lib/main/debug/shared/**/*.dylib
+            fpnge/build/lib/main/debug/shared/**/*.dll
+            fpnge/build/lib/main/debug/shared/**/*.so
 
       - name: Download FPNG artifacts
         if: matrix.os == 'ubuntu-latest'
