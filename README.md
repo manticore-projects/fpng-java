@@ -1,12 +1,15 @@
 # fpng-java
 Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng) and the AVX optimized native [FPNGE Encoder](https://github.com/veluca93/fpnge).
-It contains an additional SSE translation from Java's ABGR 4 byte into the expected RGBA 4 byte arrays (AVX has been tested to be slower, likely due to need for a 32-bit alignment.)
+It contains an additional SSE translation from Java's ABGR 4 byte into the expected RGBA 4 byte arrays (AVX has been tested to be slower, likely due to need for a 32-bit alignment). The JAR contains the **binaries for Windows, Linux and MacOS** (all 64 bit).
 
 [![Java CI with Gradle](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)
 
 # How to use it
 
+[Maven](#maven-artifacts) and [Gradle](#gradle-artifacts) artifacts are available, please see [below](#maven-artifacts).
+
 There are 5 projects included:
+- `encoder` is a basis class for loading the native libraries, byte arrays and tests
 - `fpng` is the C++ source from [FPNG](https://github.com/richgel999/fpng) with an additional C wrapper
 - `fpng-java` is the Java Wrapper, depending on `fpng` and `JNA`
 - `fpnge` is the AVX optimized C++ source from [FPNGE](https://github.com/veluca93/fpnge) with an additional C wrapper
@@ -20,7 +23,8 @@ git clone --depth 1 https://github.com/manticore-projects/fpng-java.git
 cd fpng-java
 gradle clean assemble
 ```
-The artifact will be written to: `.fpng-java/build/libs/fpng-java-1.0-SNAPSHOT.jar`
+The artifact will be written to: `.fpng-java/build/libs/fpng-java-0.99-SNAPSHOT.jar`
+
 
 # Benchmarks
 
@@ -29,7 +33,6 @@ There is a JMH based benchmark suite comparing other Java PNG Encoders, using on
 ```bash
 gradle clean assemble jmh
 ```
-
 
 ```text
 GRAAL VM 21
@@ -65,13 +68,50 @@ PNGEncoderBenchmark.encodeFastest                   example.png  avgt    3    17
 PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   360.417 ±   8.995  ms/op
 ```
 
+# Maven Artifacts
+```xml
+<repositories>
+    <repository>
+        <id>sonatype-snapshots</id>
+        <snapshots>
+            <enabled>true</enabled>
+        </snapshots>
+        <url>https://oss.sonatype.org/content/groups/public/</url>
+    </repository>
+</repositories>
+<dependencies>
+    <dependency>
+        <groupId>com.manticore-projects.tools</groupId>
+        <artifactId>fpng-java</artifactId>
+        <version>0.99.1-SNAPSHOT</version>
+    </dependency>
+    <dependency>
+        <groupId>com.manticore-projects.tools</groupId>
+        <artifactId>fpnge-java</artifactId>
+        <version>0.99.1-SNAPSHOT</version>
+    </dependency>
+</dependencies>
+```
+# Gradle Artifacts
+```groovy
+repositories {
+    maven {
+        url = uri('https://oss.sonatype.org/content/groups/public/')
+    }
+}
+dependencies {
+    implementation 'com.manticore-projects.tools:fpng-java:+'
+    implementation 'com.manticore-projects.tools:fpnge-java:+'
+}
+```
+
 # To Do
 
 - [ ] Right now we compare only the speed without paying attention to the size of the encoded image. We will need to calibrate the benchmarks to compare only modes producing similar sizes. Also, 24bit vs 32bit modes need to be honored.
 - [X] Benchmark the translation of the `BufferedImage` into the `RGBA` byte array, which is right now Pixel based and likely slow.
 - [ ] Further we should add more test images for the "screen capturing" use case, which may yield different outcomes. Right now only photo-realistic images are tested.
-- [ ] Publish Artifact to Maven/Sonatype.
-- [ ] Fat/Ueber JAR with support for the 4 major Operating Systems.
+- [X] Publish Artifact to Maven/Sonatype.
+- [X] Fat/Ueber JAR with support for the 4 major Operating Systems.
 - [ ] Drop slow JNA and replace with a JNI implementation.
 - [X] Investigate the difference in performance on Graal JDK vs OpenJDK or JetBrains JDK.
 - [ ] Try profiling with PGO.
