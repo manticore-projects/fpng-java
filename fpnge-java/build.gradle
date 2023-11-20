@@ -1,23 +1,74 @@
 plugins {
     id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+}
+
+def getVersion = { boolean considerSnapshot ->
+    Integer major = 0
+    Integer minor = 0
+    Integer patch = null
+    Integer build = null
+    def commit = null
+    def snapshot = ""
+    new ByteArrayOutputStream().withStream { os ->
+        exec {
+            args = [
+                    "--no-pager"
+                    , "describe"
+                    , "--tags"
+                    , "--always"
+                    , "--dirty=-SNAPSHOT"
+            ]
+            executable "git"
+            standardOutput = os
+        }
+        def versionStr = os.toString().trim()
+        def pattern = /(?<major>\d*)\.(?<minor>\d*)(\.(?<patch>\d*))?(-(?<build>\d*)-(?<commit>[a-zA-Z\d]*))?/
+        def matcher = versionStr =~ pattern
+        if (matcher.find()) {
+            major = matcher.group('major') as Integer
+            minor = matcher.group('minor') as Integer
+            patch = matcher.group('patch') as Integer
+            build = matcher.group('build') as Integer
+            commit = matcher.group('commit')
+        }
+
+        if (considerSnapshot && ( versionStr.endsWith('SNAPSHOT') || build!=null) ) {
+            minor++
+            if (patch!=null) patch = 0
+            snapshot = "-SNAPSHOT"
+        }
+    }
+    return patch!=null
+            ? "${major}.${minor}.${patch}${snapshot}"
+            :  "${major}.${minor}${snapshot}"
 }
 
 group = 'com.manticore.tools'
-version = '1.0-SNAPSHOT'
+version = getVersion( !System.getenv("RELEASE") )
+group = 'com.manticore-projects.tools'
+description = 'Java Wrapper around native AVX optimised FPNGE Encoder'
 
 repositories {
     mavenCentral()
 }
 
+configurations {
+    xmlDoclet
+}
+
 dependencies {
-    implementation project(':encoder-java')
-    implementation 'net.java.dev.jna:jna:+'
-    implementation 'net.java.dev.jna:jna-platform:+'
+    api project(':encoder-java')
+    api 'net.java.dev.jna:jna:+'
+    api 'net.java.dev.jna:jna-platform:+'
 
     testImplementation platform('org.junit:junit-bom:5.9.1')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'commons-io:commons-io:+'
 
+    // Java Doc in XML Format
+    xmlDoclet 'com.manticore-projects.tools:xml-doclet:+'
 }
 
 test {
@@ -43,6 +94,105 @@ java {
     }
 }
 
+
+javadoc {
+    if(JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption('html5', true)
+    }
+    options.addBooleanOption("Xdoclint:none", true)
+}
+
+tasks.register('xmldoc', Javadoc) {
+    def outFile =  reporting.file(
+            version.endsWith("-SNAPSHOT")
+                    ? "xmlDoclet/javadoc_snapshot.xml"
+                    : "xmlDoclet/javadoc_stable.xml"
+    )
+
+    def rstFile =  reporting.file(
+            version.endsWith("-SNAPSHOT")
+                    ? "xmlDoclet/javadoc_snapshot.rst"
+                    : "xmlDoclet/javadoc_stable.rst"
+    )
+
+    source = sourceSets.main.allJava
+    // beware: Gradle deletes this folder automatically and there is no switch-off
+    destinationDir = reporting.file("xmlDoclet")
+    options.docletpath = configurations.xmlDoclet.files as List
+    options.doclet = "com.github.markusbernhardt.xmldoclet.XmlDoclet"
+    title = "API $version"
+    options.addBooleanOption("rst", true)
+    options.addBooleanOption("withFloatingToc", Boolean.parseBoolean(System.getenv().getOrDefault("FLOATING_TOC", "true")))
+    options.addStringOption("basePackage", "com.manticore.tools")
+    options.addStringOption("filename", outFile.getName())
+
+    dependsOn(compileJava)
+    doLast {
+        copy {
+            from rstFile
+            into "${projectDir}/src/site/sphinx/"
+        }
+    }
+}
+
 compileJava.dependsOn {
     ':fpnge:copyNativeLib'
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+
+            from components.java
+            versionMapping {
+                usage('java-api') {
+                    fromResolutionOf('runtimeClasspath')
+                }
+                usage('java-runtime') {
+                    fromResolutionResult()
+                }
+            }
+            pom {
+                name = 'fpnge-java'
+                description = 'Java Wrapper around the native AVX optimized FPNGE Encoder'
+                url = 'https://manticore-projects.com/JavaFPNG'
+                licenses {
+                    license {
+                        name = 'The GNU GENERAL PUBLIC LICENSE, Version 3.0'
+                        url = 'https://www.gnu.org/licenses/gpl-3.0.en.html'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'are'
+                        name = 'Andreas Reichel'
+                        email = 'andreas@manticore-projects.com'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/manticore-projects/fpng-java.git'
+                    developerConnection = 'scm:git:ssh://git@github.com:manticore-projects/fpng-java.git'
+                    url = 'https://github.com/manticore-projects/JavaFPNG'
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name "ossrh"
+            def releasesRepoUrl = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+            def snapshotsRepoUrl= "https://s01.oss.sonatype.org/content/repositories/snapshots/"
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+            credentials(PasswordCredentials)
+        }
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/manticore-projects/fpng-java")
+            credentials(PasswordCredentials)
+        }
+    }
+}
+
+signing {
+    sign publishing.publications.mavenJava
 }
