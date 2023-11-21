@@ -28,8 +28,10 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.logging.Logger;
 
 abstract interface Encoder extends Library {
+    public static Logger LOGGER = Logger.getLogger(Encoder.class.getName());
 
     // if we can't use the SSE or AVX byte shuffling, we could fall back to Java based byte swapping
     public static void swapIntBytes(byte[] bytes) {
@@ -120,6 +122,7 @@ abstract interface Encoder extends Library {
         String osArch = System.getProperty("os.arch");
 
         String resourcePath = "/lib";
+        String prefix = "lib";
         String extension = ".so";
         String targetFolder = System.getProperty("java.io.tmpdir") + File.separator + clazz.getSimpleName() + File.separator;
 
@@ -127,6 +130,14 @@ abstract interface Encoder extends Library {
             extractFilesFromURI(clazz.getResource("/lib").toURI(), targetFolder);
         } catch (IOException | URISyntaxException e) {
             throw new RuntimeException(e);
+        }
+
+        // clip the prefix
+        // on Linux, MacOS: libfpng.*
+        // on Windows: fpng.dll
+        if (libraryName.startsWith(prefix)) {
+            libraryName=libraryName.substring(prefix.length());
+            LOGGER.warning("Clipping prefix and setting library name = '" + libraryName + '"');
         }
 
         // linux/x86-64
@@ -137,6 +148,7 @@ abstract interface Encoder extends Library {
             targetFolder += "linux";
         } else if ( osName.equalsIgnoreCase("windows") ) {
             targetFolder += "windows";
+            prefix = "";
             extension = ".dll";
         } else if ( osName.equalsIgnoreCase("macos") ) {
             targetFolder += "macos";
@@ -149,7 +161,10 @@ abstract interface Encoder extends Library {
             targetFolder += File.separator + "x86-32";
         }
 
-        return Native.load(targetFolder + File.separator + libraryName + extension, clazz);
+        String name = targetFolder + File.separator + prefix + libraryName + extension;
+        LOGGER.info ("Load native library from " + name);
+
+        return Native.load( name, clazz);
     }
 
     public static byte[] encode(BufferedImage image, int numberOfChannels, int flags) {
