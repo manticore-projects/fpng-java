@@ -8,13 +8,14 @@ It contains an additional SSE translation from Java's ABGR 4 byte into the expec
 
 [Maven](#maven-artifacts) and [Gradle](#gradle-artifacts) artifacts are available, please see [below](#maven-artifacts).
 
-There are 5 projects included:
+There are 7 projects included:
 - `encoder` is a basis class for loading the native libraries, byte arrays and tests
 - `fpng` is the C++ source from [FPNG](https://github.com/richgel999/fpng) with an additional C wrapper
 - `fpng-java` is the Java Wrapper, depending on `fpng` and `JNA`
 - `fpnge` is the AVX optimized C++ source from [FPNGE](https://github.com/veluca93/fpnge) with an additional C wrapper
 - `fpnge-java` is the Java Wrapper, depending on `fpnge` and `JNA`
 - `benchmark` are optional JMH based performance tests
+- `maven-test` as a most simple Java project stub for testing the Maven dependencies and the Native Libs on various OS after publishing
 
 The following Gradle task will compile FPNG with `-O3 -march-native` and wrap it into a JAR via JNA.
 
@@ -76,7 +77,7 @@ PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   360
         <snapshots>
             <enabled>true</enabled>
         </snapshots>
-        <url>https://oss.sonatype.org/content/groups/public/</url>
+        <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
     </repository>
 </repositories>
 <dependencies>
@@ -95,8 +96,9 @@ PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   360
 # Gradle Artifacts
 ```groovy
 repositories {
+    mavenCentral()
     maven {
-        url = uri('https://oss.sonatype.org/content/groups/public/')
+        url = uri('https://s01.oss.sonatype.org/content/repositories/snapshots')
     }
 }
 dependencies {
