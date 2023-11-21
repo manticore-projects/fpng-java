@@ -83,13 +83,18 @@ PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   360
 <dependencies>
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
+        <artifactId>encoder-java</artifactId>
+        <version>1.0.0</version>
+    </dependency>
+    <dependency>
+        <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpng-java</artifactId>
-        <version>0.99.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </dependency>
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpnge-java</artifactId>
-        <version>0.99.0-SNAPSHOT</version>
+        <version>1.0.0</version>
     </dependency>
 </dependencies>
 ```
@@ -98,10 +103,14 @@ PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   360
 repositories {
     mavenCentral()
     maven {
-        url = uri('https://s01.oss.sonatype.org/content/repositories/snapshots')
+        url = uri('https://s01.oss.sonatype.org/content/repositories/releases/')
+    }
+    maven {
+        url = uri('https://s01.oss.sonatype.org/content/repositories/snapshots/')
     }
 }
 dependencies {
+    implementation 'com.manticore-projects.tools:encoder-java:+'
     implementation 'com.manticore-projects.tools:fpng-java:+'
     implementation 'com.manticore-projects.tools:fpnge-java:+'
 }
