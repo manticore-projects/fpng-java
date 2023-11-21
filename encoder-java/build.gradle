@@ -1,16 +1,18 @@
 plugins {
     id 'java-library'
+    id 'maven-publish'
+    id 'signing'
 }
 
-group = 'com.manticore.tools'
-version = '1.0-SNAPSHOT'
+group = 'com.manticore-projects.tools'
+description = 'Java Wrapper around a native encoder for a BufferedImage'
+
 
 repositories {
     mavenCentral()
 }
 
 dependencies {
-    //implementation project(':fpng')
     implementation 'net.java.dev.jna:jna:+'
     implementation 'net.java.dev.jna:jna-platform:+'
 
@@ -29,5 +31,63 @@ java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(11))
     }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+
+            from components.java
+            versionMapping {
+                usage('java-api') {
+                    fromResolutionOf('runtimeClasspath')
+                }
+                usage('java-runtime') {
+                    fromResolutionResult()
+                }
+            }
+            pom {
+                name = 'fpng-java'
+                description = 'Java Wrapper around the native SSE2 optimized FPNG Encoder'
+                url = 'https://manticore-projects.com/JavaFPNG'
+                licenses {
+                    license {
+                        name = 'The GNU GENERAL PUBLIC LICENSE, Version 3.0'
+                        url = 'https://www.gnu.org/licenses/gpl-3.0.en.html'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'are'
+                        name = 'Andreas Reichel'
+                        email = 'andreas@manticore-projects.com'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/manticore-projects/fpng-java.git'
+                    developerConnection = 'scm:git:ssh://git@github.com:manticore-projects/fpng-java.git'
+                    url = 'https://github.com/manticore-projects/JavaFPNG'
+                }
+            }
+        }
+    }
+    repositories {
+        maven {
+            name "ossrh"
+            def releasesRepoUrl = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
+            def snapshotsRepoUrl= "https://s01.oss.sonatype.org/content/repositories/snapshots/"
+            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
+            credentials(PasswordCredentials)
+        }
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/manticore-projects/fpng-java")
+            credentials(PasswordCredentials)
+        }
+    }
+}
+
+signing {
+    sign publishing.publications.mavenJava
 }
 
