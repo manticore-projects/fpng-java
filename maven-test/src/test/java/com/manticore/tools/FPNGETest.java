@@ -7,6 +7,7 @@ import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
 
 class FPNGTest {
+
     @ParameterizedTest
     @CsvSource({
             "example, 3"
@@ -15,7 +16,7 @@ class FPNGTest {
             , "looklet-look-scale6, 4"
     })
     void encodeFPNGTest(String fileName, int channels) throws IOException, InvocationTargetException, NoSuchMethodException, IllegalAccessException {
-        Encoder.encoderTest(FPNG.class, fileName, channels);
+        Encoder.encoderTest(FPNGEncoder.class, fileName, channels);
     }
 
     @ParameterizedTest
