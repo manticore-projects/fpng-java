@@ -7,7 +7,6 @@ plugins {
 group = 'com.manticore-projects.tools'
 description = 'Java Wrapper around a native encoder for a BufferedImage'
 
-
 repositories {
     mavenCentral()
 }
@@ -31,6 +30,11 @@ java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(11))
     }
+}
+
+javadoc {
+    // add this option for building an empty JavaDoc, thank you SonaType!
+    options.addBooleanOption("package", true)
 }
 
 publishing {
