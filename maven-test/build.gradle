@@ -12,7 +12,7 @@ repositories {
     }
 }
 dependencies {
-    testImplementation 'com.manticore-projects.tools:encoder-java:+'
+    testImplementation 'com.manticore-projects.tools:encoder-java:0.99.3+'
     testImplementation 'com.manticore-projects.tools:fpng-java:+'
     testImplementation 'com.manticore-projects.tools:fpnge-java:+'
 
