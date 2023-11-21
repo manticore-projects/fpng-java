@@ -2,6 +2,13 @@
 
 Changelog of fpng-java.
 
+## 0.99.1 (2023-11-21)
+
+### Features
+
+-  add `maven-test` sub project ([72d69](https://github.com/manticore-projects/fpng-java/commit/72d69a6ce49dab5) Andreas Reichel)
+-  introduce prefix='lib' for supporting the Windows OS ([e39f2](https://github.com/manticore-projects/fpng-java/commit/e39f2479a41bb99) Andreas Reichel)
+
 ## 0.99.0 (2023-11-20)
 
 ### Bug Fixes
