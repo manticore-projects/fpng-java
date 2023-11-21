@@ -1,0 +1,26 @@
+plugins {
+    id 'java-library'
+}
+
+repositories {
+    mavenCentral()
+    maven {
+        url = uri('https://s01.oss.sonatype.org/content/repositories/snapshots/')
+    }
+}
+dependencies {
+    implementation 'com.manticore-projects.tools:fpng-java:+'
+    implementation 'com.manticore-projects.tools:fpnge-java:+'
+}
+
+test {
+    beforeSuite {
+        copy {
+            from '../benchmark/src/test/resources/'
+            into 'build/resources/test'
+            include '*.png'
+        }
+    }
+    useJUnitPlatform()
+}
+
