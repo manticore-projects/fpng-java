@@ -2,6 +2,13 @@
 
 Changelog of fpng-java.
 
+## 1.0.0 (2023-11-21)
+
+### Bug Fixes
+
+-  call the correct class `FPNGEncoder` in the `maven-test` ([e50c4](https://github.com/manticore-projects/fpng-java/commit/e50c4f1f5555c4f) Andreas Reichel)  
+-  Create New Filesystem for ZIP, when reading from a JAR file ([a77bb](https://github.com/manticore-projects/fpng-java/commit/a77bbbd50af1cec) Andreas Reichel)  
+
 ## 0.99.2 (2023-11-21)
 
 ### Bug Fixes
