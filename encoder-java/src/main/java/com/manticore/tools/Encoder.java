@@ -17,6 +17,8 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.file.FileSystem;
+import java.nio.file.FileSystems;
 import java.nio.file.FileVisitOption;
 import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
@@ -27,7 +29,9 @@ import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 abstract interface Encoder extends Library {
@@ -80,6 +84,21 @@ abstract interface Encoder extends Library {
 
     // copy a folder with all its content from inside the JAR to a filesystem destinantion (e.g. '/tmp/)
     static void extractFilesFromURI(URI uri, String target) throws IOException {
+        LOGGER.fine("Extract native libraries from: " + uri.toASCIIString());
+
+        // see: https://docs.oracle.com/javase/7/docs/technotes/guides/io/fsp/zipfilesystemprovider.html
+        // create the file system before we can access the path within the zip
+        // this will fail when not having a zip
+        Map<String, String> env = new HashMap<>();
+        env.put("create", "true");
+        try (FileSystem ignored = FileSystems.newFileSystem(uri, env)) {
+            extract(uri, target);
+        } catch (Exception ex) {
+            extract(uri, target);
+        }
+    }
+
+    static void extract(URI uri, String target) throws IOException {
         Path uriPath = Paths.get(uri);
         File targetFolder = new File(target);
         targetFolder.deleteOnExit();
@@ -87,7 +106,7 @@ abstract interface Encoder extends Library {
         Files.walkFileTree(uriPath, EnumSet.noneOf(FileVisitOption.class), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, targetFolder.toPath().resolve( uriPath.relativize(file) ) , StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(file, targetFolder.toPath().resolve( uriPath.relativize(file).toString() ) , StandardCopyOption.REPLACE_EXISTING);
                 return FileVisitResult.CONTINUE;
             }
             @Override
@@ -96,7 +115,7 @@ abstract interface Encoder extends Library {
             }
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Files.createDirectories( targetFolder.toPath().resolve( uriPath.relativize(dir)));
+                Files.createDirectories( targetFolder.toPath().resolve( uriPath.relativize(dir).toString() ));
                 return FileVisitResult.CONTINUE;
             }
         });
@@ -121,13 +140,13 @@ abstract interface Encoder extends Library {
         String osName = System.getProperty("os.name");
         String osArch = System.getProperty("os.arch");
 
-        String resourcePath = "/lib";
+        String resourcePath = "lib";
         String prefix = "lib";
         String extension = ".so";
         String targetFolder = System.getProperty("java.io.tmpdir") + File.separator + clazz.getSimpleName() + File.separator;
 
         try {
-            extractFilesFromURI(clazz.getResource("/lib").toURI(), targetFolder);
+            extractFilesFromURI(ClassLoader.getSystemResource(resourcePath).toURI(), targetFolder);
         } catch (IOException | URISyntaxException e) {
             throw new RuntimeException(e);
         }
