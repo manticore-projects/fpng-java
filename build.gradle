@@ -1,20 +1,10 @@
+import se.bjurr.gitchangelog.api.GitChangelogApi
+import se.bjurr.gitchangelog.plugin.gradle.GitChangelogSemanticVersionTask
 import se.bjurr.gitchangelog.plugin.gradle.GitChangelogTask
 
 plugins {
-    id 'java'
-    id 'maven-publish'
-    id 'signing'
-
-    id 'jacoco'
-    id 'com.github.kt3k.coveralls' version "latest.release"
-    id "com.github.spotbugs" version "latest.release"
     id "com.diffplug.spotless" version "latest.release"
-    id 'pmd'
-    id 'checkstyle'
-
-    // download the RR tools which have no Maven Repository
     id 'org.hidetake.ssh' version "latest.release"
-
     id "se.bjurr.gitchangelog.git-changelog-gradle-plugin" version "latest.release"
 }
 
@@ -32,156 +22,18 @@ repositories {
     }
 }
 
-configurations {
-    xmlDoclet
-}
-
-
-dependencies {
-    // Java Doc in XML Format
-    xmlDoclet 'com.manticore-projects.tools:xml-doclet:+'
-}
-
-
-java {
-    withSourcesJar()
-    withJavadocJar()
-
-    sourceCompatibility = '1.8'
-    targetCompatibility = '1.8'
-    // needed for XML-Doclet to work (since Doclet changed again with Java 13)
-    // toolchain {
-    //    languageVersion.set(JavaLanguageVersion.of(11))
-    //}
-}
-
-compileJava {
-    options.release = 8
-}
-
-javadoc {
-    if(JavaVersion.current().isJava9Compatible()) {
-        options.addBooleanOption('html5', true)
-    }
-    options.addBooleanOption("Xdoclint:none", true)
-}
-
-tasks.register('xmldoc', Javadoc) {
-    def outFile =  reporting.file(
-            version.endsWith("-SNAPSHOT")
-                    ? "xmlDoclet/javadoc_snapshot.xml"
-                    : "xmlDoclet/javadoc_stable.xml"
-    )
-
-    def rstFile =  reporting.file(
-            version.endsWith("-SNAPSHOT")
-                    ? "xmlDoclet/javadoc_snapshot.rst"
-                    : "xmlDoclet/javadoc_stable.rst"
-    )
-
-    source = sourceSets.main.allJava
-    // beware: Gradle deletes this folder automatically and there is no switch-off
-    destinationDir = reporting.file("xmlDoclet")
-    options.docletpath = configurations.xmlDoclet.files as List
-    options.doclet = "com.github.markusbernhardt.xmldoclet.XmlDoclet"
-    title = "API $version"
-    options.addBooleanOption("rst", true)
-    options.addBooleanOption("withFloatingToc", Boolean.parseBoolean(System.getenv().getOrDefault("FLOATING_TOC", "true")))
-    options.addStringOption("basePackage", "net.sf.jsqlparser")
-    options.addStringOption("filename", outFile.getName())
-
-    dependsOn(compileJava)
-    doLast {
-        copy {
-            from rstFile
-            into "${projectDir}/src/site/sphinx/"
-        }
-    }
-}
-
-coveralls {
-    jacocoReportPath 'build/reports/jacoco/test/jacocoTestReport.xml'
-}
-
-jacocoTestReport {
-    dependsOn test // tests are required to run before generating the report
-    reports {
-        xml.required = false
-        csv.required = false
-        html.outputLocation = layout.buildDirectory.dir('reports/jacoco')
-    }
-}
-jacocoTestCoverageVerification {
-    violationRules {
-        rule {
-            //element = 'CLASS'
-            limit {
-                //@todo: temporarily reduced it 80%, we need to bring that back to 84% accepting the Keywords PR
-                minimum = 0.80
-            }
-//            excludes = [
-//                    'net.sf.jsqlparser.util.validation.*',
-//            ]
-        }
-    }
-}
-
-spotbugsMain {
-    reports {
-        html {
-            enabled = true
-            destination = file("build/reports/spotbugs/main/spotbugs.html")
-            stylesheet = 'fancy-hist.xsl'
-        }
-    }
-}
-
-spotbugs {
-    // fail only on P1 and without the net.sf.jsqlparser.parser.*
-    excludeFilter = file("config/spotbugs/spotBugsExcludeFilter.xml")
-
-    // do not run over the test, although we should do that eventually
-    spotbugsTest.enabled = false
-}
-
-pmd {
-    consoleOutput = true
-    sourceSets = [sourceSets.main]
-
-    // clear the ruleset in order to use configured rules only
-    ruleSets = []
-
-    //rulesMinimumPriority = 1
-    ruleSetFiles = files("config/pmd/ruleset.xml")
-
-    pmdMain {
-        excludes = [
-                "build/generated/*"
-        ]
-    }
-}
-
-checkstyle {
-    sourceSets = [sourceSets.main, sourceSets.test]
-    configFile =rootProject.file('config/checkstyle/checkstyle.xml')
-}
-
 spotless {
     // optional: limit format enforcement to just the files changed by this feature branch
     //ratchetFrom 'origin/main'
-
     format 'misc', {
         // define the files to apply `misc` to
         target '*.rst', '*.md', '.gitignore'
+        ignoreErrorForPath('CHANGELOG.md')
 
         // define the steps to apply to those files
         trimTrailingWhitespace()
         indentWithSpaces(4) // or spaces. Takes an integer argument if you don't like 4
         endWithNewline()
-    }
-    java {
-        indentWithSpaces(4)
-        eclipse().configFile('config/formatter/eclipse-java-google-style.xml')
     }
 }
 
@@ -190,6 +42,14 @@ tasks.withType(Checkstyle).configureEach {
         xml.required = false
         html.required = true
     }
+}
+
+// Optional config if you want to configure versioning
+tasks.register('gitChangelogVersionTask', GitChangelogSemanticVersionTask) {
+    suffixSnapshot = true;
+    majorVersionPattern = "^[Bb]reaking"
+    minorVersionPattern = "[Ff]eature"
+    patchVersionPattern = "[Ff]ix"
 }
 
 tasks.register('gitChangelogTask', GitChangelogTask) {
@@ -229,23 +89,29 @@ Version {{name}}
     // @formatter:on
 }
 
+//def nextVersion = GitChangelogApi.gitChangelogApiBuilder()
+//        .withSemanticMajorVersionPattern("^[Bb]reaking")
+//        .withSemanticMinorVersionPattern("[Ff]eature")
+//        .getNextSemanticVersion();
+def nextVersion='0.99.4'
+
 tasks.register('sphinx', Exec) {
-    dependsOn(gitChangelogTask, xmldoc)
+    dependsOn(gitChangelogTask, ':fpng-java:xmldoc', ':fpnge-java:xmldoc')
 
     String PROLOG = """
 .. |_| unicode:: U+00A0
     :trim:
 
 .. |FPNG_ENCODER_EMAIL| replace:: support@manticore-projects.com
-.. |FPNG_ENCODER_VERSION| replace:: ${getVersion(false)}
-.. |FPNG_ENCODER_SNAPSHOT_VERSION| replace:: ${getVersion(true)}
+.. |FPNG_ENCODER_VERSION| replace:: ${version}
+.. |FPNG_ENCODER_SNAPSHOT_VERSION| replace:: ${nextVersion}
 .. |FPNG_ENCODER_STABLE_VERSION_LINK| raw:: html
 
-    <a href='http://manticore-projects.com/download/${project.name}-${getVersion(false)}/${project.name}-${getVersion(false)}.jar'>${project.name}-${getVersion(false)}.jar</a>
+    <a href='http://manticore-projects.com/download/${project.name}-${version}/${project.name}-${version}.jar'>${project.name}-${version}.jar</a>
 
 .. |FPNG_ENCODER_SNAPSHOT_VERSION_LINK| raw:: html
 
-    <a href='http://manticore-projects.com/download/${project.name}-${getVersion(false)}/${project.name}-${getVersion(true)}.jar'>${project.name}-${getVersion(true)}.jar</a>
+    <a href='http://manticore-projects.com/download/${project.name}-${version}/${project.name}-${nextVersion}.jar'>${project.name}-${nextVersion}.jar</a>
 
 """
 
@@ -253,7 +119,7 @@ tasks.register('sphinx', Exec) {
             "-Dproject=FPNG_JAVA"
             , "-Dcopyright=manticore-projects.com, 2023"
             , "-Dauthor=Andreas Reichel"
-            , "-Drelease=${getVersion(false)}"
+            , "-Drelease=${version}"
             , "-Drst_prolog=$PROLOG"
             , "${projectDir}/src/site/sphinx"
             , "${project.buildDir}/sphinx"
@@ -268,86 +134,6 @@ tasks.register('sphinx', Exec) {
     ext.output = {
         return standardOutput.toString()
     }
-}
-
-publish {
-    dependsOn(check, gitChangelogTask, xmldoc)
-}
-
-publishing {
-    publications {
-        mavenJava(MavenPublication) {
-            artifactId = 'fpng-java'
-
-            from components.java
-            versionMapping {
-                usage('java-api') {
-                    fromResolutionOf('runtimeClasspath')
-                }
-                usage('java-runtime') {
-                    fromResolutionResult()
-                }
-            }
-            pom {
-                name = 'Java FPNG-Encoder library'
-                description = 'A Java Wrapper around the highly optimized native FPNG Encoder'
-                url = 'https://github.com/manticore-projects/fpng-java'
-                licenses {
-                    license {
-                        name = 'GNU Library or Lesser General Public License (LGPL) V2.1'
-                        url = 'http://www.gnu.org/licenses/lgpl-2.1.html'
-                    }
-                    license {
-                        name = 'The Apache Software License, Version 2.0'
-                        url = 'http://www.apache.org/licenses/LICENSE-2.0.txt'
-                    }
-                }
-                developers {
-                    developer {
-                        id = 'are'
-                        name = 'Andreas Reichel'
-                        email = 'andreas@manticore-projects.com'
-                    }
-                }
-                scm {
-                    connection = 'scm:git:https://github.com/manticore-projects/fpng-java'
-                    developerConnection = 'scm:git:ssh://git@github.com:manticore-projects/fpng-java.git'
-                    url = 'https://github.com/manticore-projects/fpng-java.git'
-                }
-            }
-        }
-    }
-    repositories {
-        maven {
-            name "ossrh"
-
-            def releasesRepoUrl = "https://oss.sonatype.org/content/repositories/snapshots"
-            def snapshotsRepoUrl= "https://oss.sonatype.org/service/local/staging/deploy/maven2"
-            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-            //credentials(PasswordCredentials)
-            credentials {
-                username = System.getenv("ossrhUsername")
-                password = System.getenv("ossrhPassword")
-            }
-        }
-//        maven {
-//            name = "GitHubPackages"
-//
-//            url = uri("https://maven.pkg.github.com/JSQLParser/jsqlparser")
-//            credentials(PasswordCredentials)
-//        }
-    }
-}
-
-signing {
-    // def signingKey = findProperty("signingKey")
-    // def signingPassword = findProperty("signingPassword")
-    // useInMemoryPgpKeys(signingKey, signingPassword)
-    sign publishing.publications.mavenJava
-}
-
-tasks.withType(JavaCompile).configureEach {
-    options.encoding = 'UTF-8'
 }
 
 remotes {
@@ -372,7 +158,7 @@ tasks.register('upload') {
     doLast {
         ssh.run {
             session(remotes.webServer) {
-                def versionStable = getVersion(false)
+                def versionStable = version
                 execute "mkdir -p download/${project.name}-${versionStable}"
                 for (File file: fileTree(include:['*.jar'], dir:"${project.buildDir}/libs").collect()) {
                     put from: file, into: "download/${project.name}-${versionStable}"
@@ -381,4 +167,4 @@ tasks.register('upload') {
         }
     }
 }
-upload.dependsOn(check, assemble, gitChangelogTask, xmldoc)
+upload.dependsOn(check, assemble, gitChangelogTask)
