@@ -2,6 +2,12 @@
 
 Changelog of fpng-java.
 
+## 0.99.2 (2023-11-21)
+
+### Bug Fixes
+
+-  spelling of the Gradle task ([94f93](https://github.com/manticore-projects/fpng-java/commit/94f9385c47199ea) Andreas Reichel)
+
 ## 0.99.1 (2023-11-21)
 
 ### Features
