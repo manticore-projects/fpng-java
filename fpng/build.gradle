@@ -50,7 +50,7 @@ tasks.register('copyNativeLib', Copy) {
     dependsOn assemble
     from './build/lib/main/debug/shared'
     from './build/lib/main/release/shared'
-    into '../fpng-java/build/resources/main/lib'
+    into '../fpng-java/build/resources/main/lib/fpng'
 
     // the native library file extensions on different platforms
     include '**/*.dll', '**/*.so', 'build/lib/**/*.dylib'

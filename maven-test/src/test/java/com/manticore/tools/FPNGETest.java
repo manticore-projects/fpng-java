@@ -5,8 +5,10 @@ import org.junit.jupiter.params.provider.CsvSource;
 
 import java.io.IOException;
 import java.lang.reflect.InvocationTargetException;
+import java.util.logging.Logger;
 
 class FPNGTest {
+    public final static Logger LOGGER = Logger.getLogger(FPNGTest.class.getName());
 
     @ParameterizedTest
     @CsvSource({

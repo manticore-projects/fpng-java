@@ -10,7 +10,7 @@ import java.util.Arrays;
 import java.util.List;
 
 public interface FPNGE extends Encoder {
-    FPNGE ENCODER = (FPNGE) Encoder.load(FPNGE.class, "libfpnge");
+    FPNGE ENCODER = (FPNGE) Encoder.load(FPNGE.class, "fpnge");
 
     void fpng_init();
 

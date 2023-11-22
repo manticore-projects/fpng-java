@@ -25,7 +25,7 @@ import java.util.EnumSet;
 import java.util.List;
 
 public interface FPNGEncoder extends Encoder {
-    FPNGEncoder ENCODER = (FPNGEncoder) Encoder.load(FPNGEncoder.class, "libfpng");
+    FPNGEncoder ENCODER = (FPNGEncoder) Encoder.load(FPNGEncoder.class, "fpng");
 
     void fpng_init();
 

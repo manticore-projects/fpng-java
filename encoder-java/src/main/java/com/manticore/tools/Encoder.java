@@ -17,6 +17,7 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.net.URL;
 import java.nio.file.FileSystem;
 import java.nio.file.FileSystems;
 import java.nio.file.FileVisitOption;
@@ -84,7 +85,7 @@ abstract interface Encoder extends Library {
 
     // copy a folder with all its content from inside the JAR to a filesystem destinantion (e.g. '/tmp/)
     static void extractFilesFromURI(URI uri, String target) throws IOException {
-        LOGGER.fine("Extract native libraries from: " + uri.toASCIIString());
+        LOGGER.info("Extract native libraries from: " + uri.toASCIIString());
 
         // see: https://docs.oracle.com/javase/7/docs/technotes/guides/io/fsp/zipfilesystemprovider.html
         // create the file system before we can access the path within the zip
@@ -140,48 +141,57 @@ abstract interface Encoder extends Library {
         String osName = System.getProperty("os.name");
         String osArch = System.getProperty("os.arch");
 
-        String resourcePath = "lib";
+        String resourcePath = "/lib";
         String prefix = "lib";
         String extension = ".so";
-        String targetFolder = System.getProperty("java.io.tmpdir") + File.separator + clazz.getSimpleName() + File.separator;
-
-        try {
-            extractFilesFromURI(ClassLoader.getSystemResource(resourcePath).toURI(), targetFolder);
-        } catch (IOException | URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
+        String targetFolder = System.getProperty("java.io.tmpdir") + File.separator + libraryName + File.separator;
 
         // clip the prefix
         // on Linux, MacOS: libfpng.*
         // on Windows: fpng.dll
         if (libraryName.startsWith(prefix)) {
             libraryName=libraryName.substring(prefix.length());
-            LOGGER.warning("Clipping prefix and setting library name = '" + libraryName + '"');
+            LOGGER.fine("Clipping prefix and setting library name = '" + libraryName + '"');
         }
 
         // linux/x86-64
         // linux/x86
         // windows/x86-64
         // macOS/x86-64
+        String name = targetFolder;
         if ( osName.equalsIgnoreCase("linux") ) {
-            targetFolder += "linux";
+            name += "linux";
         } else if ( osName.equalsIgnoreCase("windows") ) {
-            targetFolder += "windows";
+            name += "windows";
             prefix = "";
             extension = ".dll";
         } else if ( osName.equalsIgnoreCase("macos") ) {
-            targetFolder += "macos";
+            name += "macos";
             extension = ".dylib";
         }
 
         if ( osArch.contains("64") ) {
-            targetFolder += File.separator + "x86-64";
+            name += File.separator + "x86-64";
         } else {
-            targetFolder += File.separator + "x86-32";
+            name += File.separator + "x86-32";
         }
 
-        String name = targetFolder + File.separator + prefix + libraryName + extension;
-        LOGGER.info ("Load native library from " + name);
+        name += File.separator + prefix + libraryName + extension;
+        if (new File(name).isFile()) {
+            LOGGER.fine("Load native library from " + name);
+        } else {
+            LOGGER.fine("Extract and Load native library from " + name);
+            URL resource = clazz.getResource(resourcePath + "/" + libraryName);
+            if (resource!=null) {
+                try {
+                    extractFilesFromURI(resource.toURI(), targetFolder);
+                } catch (IOException | URISyntaxException ex) {
+                    throw new RuntimeException("Failed to extract " + resource + " from " + clazz.getCanonicalName() + " to " + targetFolder, ex);
+                }
+            } else {
+                throw new RuntimeException("Resource " + resourcePath + "/" + libraryName + " does not exist in " + clazz.getCanonicalName());
+            }
+        }
 
         return Native.load( name, clazz);
     }
