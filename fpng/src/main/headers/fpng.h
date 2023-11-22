@@ -1,6 +1,9 @@
 // fpng.h - unlicense (see end of fpng.cpp)
 #pragma once
 
+#ifndef FPNG_H
+#define FPNG_H
+
 #include <stdlib.h>
 #include <stdint.h>
 #include <vector>
@@ -8,6 +11,17 @@
 #ifndef FPNG_TRAIN_HUFFMAN_TABLES
 	// Set to 1 when using the -t (training) option in fpng_test to generate new opaque/alpha Huffman tables for the single pass encoder.
 	#define FPNG_TRAIN_HUFFMAN_TABLES (0)
+#endif
+
+#ifdef _WIN32
+    #ifdef _MSC_VER
+    #define EXPORT __declspec(dllexport)
+    #else
+    #define EXPORT __declspec(dllimport)
+    #endif
+#else
+    // If compiling for Linux
+    #define EXPORT
 #endif
 
 namespace fpng
@@ -121,4 +135,5 @@ namespace fpng
 
 } // namespace fpng
 
+#endif
 

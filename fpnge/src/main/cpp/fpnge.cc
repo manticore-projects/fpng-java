@@ -1591,11 +1591,6 @@ extern "C" size_t FPNGEEncode(size_t bytes_per_channel, size_t num_channels,
   return writer.bytes_written;
 }
 
-extern "C" typedef struct {
-   unsigned char* data;
-   size_t size;
-} CharArray;
-
 void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
     const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
 
@@ -1626,7 +1621,7 @@ void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
 //          }
 //   }
 
-extern "C" CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels,
+extern "C" EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels,
                               unsigned char* pImage, size_t width, size_t height) {
 
       struct FPNGEOptions options;

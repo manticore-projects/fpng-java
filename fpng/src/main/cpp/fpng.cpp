@@ -3194,16 +3194,16 @@ do_literals:
 } // namespace fpng
 
 extern "C" {
-    void fpng_init() {
+    EXPORT void fpng_init() {
         return fpng::fpng_init();
     }
 
-    typedef struct {
+    EXPORT typedef struct {
         uint8_t* data;
         size_t size;
     } ByteArray;
 
-    void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
+    EXPORT void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
         const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
 
         for (int i = 0; i < numPixels; i += 4) {
@@ -3213,7 +3213,7 @@ extern "C" {
         }
     }
 
-    ByteArray* fpng_encode_image_to_memory(const void* pImage, uint32_t w, uint32_t h, uint32_t num_chans,  uint32_t flags = 0) {
+    EXPORT ByteArray* fpng_encode_image_to_memory(const void* pImage, uint32_t w, uint32_t h, uint32_t num_chans,  uint32_t flags = 0) {
         // Vector frees itself
         std::vector<uint8_t> out_buf;
 

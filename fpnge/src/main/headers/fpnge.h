@@ -14,6 +14,23 @@
 #ifndef FPNGE_H
 #define FPNGE_H
 #include <stdlib.h>
+#include <cstdint>
+
+extern "C" typedef struct {
+   unsigned char* data;
+   size_t size;
+} CharArray;
+
+#ifdef _WIN32
+    #ifdef _MSC_VER
+    #define EXPORT __declspec(dllexport)
+    #else
+    #define EXPORT __declspec(dllimport)
+    #endif
+#else
+    // If compiling for Linux
+    #define EXPORT
+#endif
 
 #ifdef __cplusplus
 extern "C" {
@@ -30,6 +47,7 @@ enum FPNGEOptionsPredictor {
   FPNGE_PREDICTOR_APPROX,
   FPNGE_PREDICTOR_BEST
 };
+
 struct FPNGEOptions {
   char predictor;        // FPNGEOptionsPredictor
   char huffman_sample;   // 0-127: how much of the image to sample
@@ -64,7 +82,7 @@ inline void FPNGEFillOptions(struct FPNGEOptions *options, int level,
 
 // bytes_per_channel = 1/2 for 8-bit and 16-bit. num_channels: 1/2/3/4
 // (G/GA/RGB/RGBA)
-size_t FPNGEEncode(size_t bytes_per_channel, size_t num_channels,
+EXPORT size_t FPNGEEncode(size_t bytes_per_channel, size_t num_channels,
                    const void *data, size_t width, size_t row_stride,
                    size_t height, void *output,
                    const struct FPNGEOptions *options);
@@ -75,6 +93,9 @@ inline size_t FPNGEOutputAllocSize(size_t bytes_per_channel,
   // likely an overestimate
   return 1024 + (2 * bytes_per_channel * width * num_channels + 1) * height;
 }
+
+EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels,
+                              unsigned char* pImage, size_t width, size_t height);
 
 #ifdef __cplusplus
 }
