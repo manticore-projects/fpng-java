@@ -156,7 +156,7 @@ abstract interface Encoder extends Library {
         // taken from: https://github.com/trustin/os-maven-plugin/blob/master/src/main/java/kr/motd/maven/os/Detector.java
         if (osName.startsWith("linux")) {
             name += "linux";
-        } else if (osName.contains("win")) {
+        } else if (osName.startsWith("windows")) {
             name += "windows";
             prefix = "";
             extension = ".dll";
