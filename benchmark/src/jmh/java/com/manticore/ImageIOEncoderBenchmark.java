@@ -1,6 +1,5 @@
 package com.manticore;
 
-import com.manticore.tools.FPNGEncoder;
 import org.openjdk.jmh.annotations.Benchmark;
 
 import javax.imageio.ImageIO;

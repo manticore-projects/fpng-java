@@ -1,4 +1,3 @@
-
 .. raw:: html
 
     <div id="floating-toc">

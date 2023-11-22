@@ -1,6 +1,9 @@
 package com.manticore;
 
-import org.openjdk.jmh.annotations.*;
+import org.openjdk.jmh.annotations.Param;
+import org.openjdk.jmh.annotations.Scope;
+import org.openjdk.jmh.annotations.Setup;
+import org.openjdk.jmh.annotations.State;
 import org.openjdk.jmh.infra.Blackhole;
 
 import javax.imageio.ImageIO;
@@ -15,6 +18,10 @@ public abstract class EncoderBenchmark {
     String imageName;
     BufferedImage image;
     Blackhole blackhole;
+
+    public static void main(String[] args) throws Exception {
+        org.openjdk.jmh.Main.main(args);
+    }
 
     @Setup
     public void setup(Blackhole blackhole) {
@@ -33,9 +40,4 @@ public abstract class EncoderBenchmark {
     }
 
     abstract void encode() throws IOException;
-
-
-    public static void main(String[] args) throws Exception {
-        org.openjdk.jmh.Main.main(args);
-    }
 }

@@ -13,7 +13,7 @@ public class ObjectPlanetPNGEncoderBenchmark extends EncoderBenchmark {
     @Benchmark
     public void encode() throws IOException {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        PngEncoder encoder=new PngEncoder(COLOR_TRUECOLOR_ALPHA, BEST_SPEED);
+        PngEncoder encoder = new PngEncoder(COLOR_TRUECOLOR_ALPHA, BEST_SPEED);
         encoder.encode(image, os);
         byte[] result = os.toByteArray();
         os.close();

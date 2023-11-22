@@ -1,4 +1,3 @@
-import se.bjurr.gitchangelog.api.GitChangelogApi
 import se.bjurr.gitchangelog.plugin.gradle.GitChangelogSemanticVersionTask
 import se.bjurr.gitchangelog.plugin.gradle.GitChangelogTask
 
@@ -93,7 +92,7 @@ Version {{name}}
 //        .withSemanticMajorVersionPattern("^[Bb]reaking")
 //        .withSemanticMinorVersionPattern("[Ff]eature")
 //        .getNextSemanticVersion();
-def nextVersion='0.99.4'
+def nextVersion = '0.99.4'
 
 tasks.register('sphinx', Exec) {
     dependsOn(gitChangelogTask, ':fpng-java:xmldoc', ':fpnge-java:xmldoc')
@@ -160,7 +159,7 @@ tasks.register('upload') {
             session(remotes.webServer) {
                 def versionStable = version
                 execute "mkdir -p download/${project.name}-${versionStable}"
-                for (File file: fileTree(include:['*.jar'], dir:"${project.buildDir}/libs").collect()) {
+                for (File file : fileTree(include: ['*.jar'], dir: "${project.buildDir}/libs").collect()) {
                     put from: file, into: "download/${project.name}-${versionStable}"
                 }
             }

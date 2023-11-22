@@ -1,12 +1,25 @@
 package com.manticore;
 
-import com.sun.jna.Memory;
 import org.openjdk.jmh.annotations.Benchmark;
 
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 
 public class ByteBufferBenchmark extends EncoderBenchmark {
+    public static void swapIntBytes(byte[] bytes) {
+        assert bytes.length % 4==0;
+        for (int i = 0; i < bytes.length; i += 4) {
+            // swap 0 and 3
+            byte tmp = bytes[i];
+            bytes[i] = bytes[i + 3];
+            bytes[i + 3] = tmp;
+            // swap 1 and 2
+            byte tmp2 = bytes[i + 1];
+            bytes[i + 1] = bytes[i + 2];
+            bytes[i + 2] = tmp2;
+        }
+    }
+
     @Benchmark
 
     public void encode() {
@@ -59,20 +72,6 @@ public class ByteBufferBenchmark extends EncoderBenchmark {
         }
 
         blackhole.consume(convertedData);
-    }
-
-    public static void swapIntBytes(byte[] bytes) {
-        assert bytes.length % 4 == 0;
-        for (int i = 0; i < bytes.length; i += 4) {
-            // swap 0 and 3
-            byte tmp = bytes[i];
-            bytes[i] = bytes[i + 3];
-            bytes[i + 3] = tmp;
-            // swap 1 and 2
-            byte tmp2 = bytes[i + 1];
-            bytes[i + 1] = bytes[i + 2];
-            bytes[i + 2] = tmp2;
-        }
     }
 
     @Benchmark

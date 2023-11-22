@@ -53,20 +53,20 @@ java {
 
 
 javadoc {
-    if(JavaVersion.current().isJava9Compatible()) {
+    if (JavaVersion.current().isJava9Compatible()) {
         options.addBooleanOption('html5', true)
     }
     options.addBooleanOption("Xdoclint:none", true)
 }
 
 tasks.register('xmldoc', Javadoc) {
-    def outFile =  reporting.file(
+    def outFile = reporting.file(
             version.endsWith("-SNAPSHOT")
                     ? "xmlDoclet/javadoc_snapshot.xml"
                     : "xmlDoclet/javadoc_stable.xml"
     )
 
-    def rstFile =  reporting.file(
+    def rstFile = reporting.file(
             version.endsWith("-SNAPSHOT")
                     ? "xmlDoclet/javadoc_snapshot.rst"
                     : "xmlDoclet/javadoc_stable.rst"
@@ -138,7 +138,7 @@ publishing {
         maven {
             name "ossrh"
             def releasesRepoUrl = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
-            def snapshotsRepoUrl= "https://s01.oss.sonatype.org/content/repositories/snapshots/"
+            def snapshotsRepoUrl = "https://s01.oss.sonatype.org/content/repositories/snapshots/"
             url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
             credentials(PasswordCredentials)
         }

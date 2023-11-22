@@ -32,15 +32,18 @@ import java.util.Arrays;
 import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.logging.Logger;
 
 abstract interface Encoder extends Library {
-    public static Logger LOGGER = Logger.getLogger(Encoder.class.getName());
+    public final static Logger LOGGER = Logger.getLogger(Encoder.class.getName());
+    public final static String osName = System.getProperty("os.name").toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", "");
+    public final static String osArch = System.getProperty("os.arch").toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", "");
 
     // if we can't use the SSE or AVX byte shuffling, we could fall back to Java based byte swapping
     public static void swapIntBytes(byte[] bytes) {
-        assert bytes.length % 4 == 0;
+        assert bytes.length % 4==0;
         for (int i = 0; i < bytes.length; i += 4) {
             // swap 0 and 3
             byte tmp = bytes[i];
@@ -64,22 +67,12 @@ abstract interface Encoder extends Library {
             Method encode = encoderClass.getMethod("encode", BufferedImage.class, int.class, int.class);
             byte[] data = (byte[]) encode.invoke(null, image, channels, 0);
 
-            File file = File.createTempFile(  encoderClass.getSimpleName() + "_" + fileName + "_" + channels + "_", ".png");
+            File file = File.createTempFile(encoderClass.getSimpleName() + "_" + fileName + "_" + channels + "_", ".png");
 
             FileOutputStream fileOutputStream = new FileOutputStream(file);
             fileOutputStream.write(data);
             fileOutputStream.flush();
             fileOutputStream.close();
-        }
-    }
-
-    public static class ByteArray extends Structure {
-        public Pointer data;
-        public NativeLong size;
-
-        @Override
-        protected List<String> getFieldOrder() {
-            return Arrays.asList("data", "size");
         }
     }
 
@@ -107,16 +100,18 @@ abstract interface Encoder extends Library {
         Files.walkFileTree(uriPath, EnumSet.noneOf(FileVisitOption.class), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
             @Override
             public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, targetFolder.toPath().resolve( uriPath.relativize(file).toString() ) , StandardCopyOption.REPLACE_EXISTING);
+                Files.copy(file, targetFolder.toPath().resolve(uriPath.relativize(file).toString()), StandardCopyOption.REPLACE_EXISTING);
                 return FileVisitResult.CONTINUE;
             }
+
             @Override
             public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
                 return FileVisitResult.CONTINUE;
             }
+
             @Override
             public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Files.createDirectories( targetFolder.toPath().resolve( uriPath.relativize(dir).toString() ));
+                Files.createDirectories(targetFolder.toPath().resolve(uriPath.relativize(dir).toString()));
                 return FileVisitResult.CONTINUE;
             }
         });
@@ -126,9 +121,9 @@ abstract interface Encoder extends Library {
         BufferedImage convertedImage = new BufferedImage(
                 image.getWidth(),
                 image.getHeight(),
-                channels == 4
-                    ? BufferedImage.TYPE_4BYTE_ABGR
-                    :  BufferedImage.TYPE_3BYTE_BGR
+                channels==4
+                ? BufferedImage.TYPE_4BYTE_ABGR
+                :BufferedImage.TYPE_3BYTE_BGR
         );
 
         // Draw the original image onto the new image
@@ -138,9 +133,6 @@ abstract interface Encoder extends Library {
     }
 
     static Object load(Class<? extends Library> clazz, String libraryName) {
-        String osName = System.getProperty("os.name");
-        String osArch = System.getProperty("os.arch");
-
         String resourcePath = "/lib";
         String prefix = "lib";
         String extension = ".so";
@@ -150,7 +142,7 @@ abstract interface Encoder extends Library {
         // on Linux, MacOS: libfpng.*
         // on Windows: fpng.dll
         if (libraryName.startsWith(prefix)) {
-            libraryName=libraryName.substring(prefix.length());
+            libraryName = libraryName.substring(prefix.length());
             LOGGER.fine("Clipping prefix and setting library name = '" + libraryName + '"');
         }
 
@@ -159,21 +151,89 @@ abstract interface Encoder extends Library {
         // windows/x86-64
         // macOS/x86-64
         String name = targetFolder;
-        if ( osName.equalsIgnoreCase("linux") ) {
+
+        // credits to Copyright 2014 Trustin Heuiseung Lee.
+        // taken from: https://github.com/trustin/os-maven-plugin/blob/master/src/main/java/kr/motd/maven/os/Detector.java
+        if (osName.startsWith("linux")) {
             name += "linux";
-        } else if ( osName.equalsIgnoreCase("windows") ) {
+        } else if (osName.contains("win")) {
             name += "windows";
             prefix = "";
             extension = ".dll";
-        } else if ( osName.equalsIgnoreCase("macos") ) {
+        } else if (osName.startsWith("mac") || osName.startsWith("osx")) {
             name += "macos";
             extension = ".dylib";
+
+            // not supported or tested yet:
+        } else if (osName.startsWith("solaris") || osName.startsWith("sunos")) {
+            name += "sunos";
+        } else if (osName.startsWith("aix")) {
+            name += "aix";
+            extension = ".a";
+        } else if (osName.startsWith("hpux")) {
+            name += "hpux";
+            extension = ".sl";
+        } else if (osName.startsWith("os400") && (osName.length() <= 5 || !Character.isDigit(osName.charAt(5)))) {
+            // Avoid the names such as os4000
+            name += "os400";
+        } else if (osName.startsWith("freebsd")) {
+            name += "freebsd";
+        } else if (osName.startsWith("openbsd")) {
+            name += "openbsd";
+        } else if (osName.startsWith("netbsd")) {
+            name += "netbsd";
+        } else if (osName.startsWith("zos")) {
+            name += "zos";
         }
 
-        if ( osArch.contains("64") ) {
+        // credits to Copyright 2014 Trustin Heuiseung Lee.
+        // taken from: https://github.com/trustin/os-maven-plugin/blob/master/src/main/java/kr/motd/maven/os/Detector.java
+        if (osArch.matches("^(x8664|amd64|ia32e|em64t|x64)$")) {
             name += File.separator + "x86-64";
-        } else {
+        } else if (osArch.matches("^(x8632|x86|i[3-6]86|ia32|x32)$")) {
             name += File.separator + "x86-32";
+
+            // not supported or tested yet:
+        } else if (osArch.matches("^(ia64w?|itanium64)$")) {
+            name += File.separator + "itanium-64";
+        } else if ("ia64n".equals(osArch)) {
+            name += File.separator + "itanium-32";
+        } else if (osArch.matches("^(sparc|sparc32)$")) {
+            name += File.separator + "sparc-32";
+        } else if (osArch.matches("^(sparcv9|sparc64)$")) {
+            name += File.separator + "sparc-64";
+        } else if (osArch.matches("^(arm|arm32)$")) {
+            name += File.separator + "arm-32";
+        } else if ("aarch64".equals(osArch)) {
+            name += File.separator + "aarch-64";
+        } else if (osArch.matches("^(mips|mips32)$")) {
+            name += File.separator + "mips-32";
+        } else if (osArch.matches("^(mipsel|mips32el)$")) {
+            name += File.separator + "mipsel-32";
+        } else if ("mips64".equals(osArch)) {
+            name += File.separator + "mips-64";
+        } else if ("mips64el".equals(osArch)) {
+            name += File.separator + "mipsel-64";
+        } else if (osArch.matches("^(ppc|ppc32)$")) {
+            name += File.separator + "ppc-32";
+        } else if (osArch.matches("^(ppcle|ppc32le)$")) {
+            name += File.separator + "ppcle-32";
+        } else if ("ppc64".equals(osArch)) {
+            name += File.separator + "ppc-64";
+        } else if ("ppc64le".equals(osArch)) {
+            name += File.separator + "ppcle-64";
+        } else if ("s390".equals(osArch)) {
+            name += File.separator + "s390-32";
+        } else if ("s390x".equals(osArch)) {
+            name += File.separator + "s390-64";
+        } else if (osArch.matches("^(riscv|riscv32)$")) {
+            name += File.separator + "riscv";
+        } else if ("riscv64".equals(osArch)) {
+            name += File.separator + "riscv64";
+        } else if ("e2k".equals(osArch)) {
+            name += File.separator + "e2k";
+        } else if ("loongarch64".equals(osArch)) {
+            name += File.separator + "loongarch-64";
         }
 
         name += File.separator + prefix + libraryName + extension;
@@ -193,10 +253,22 @@ abstract interface Encoder extends Library {
             }
         }
 
-        return Native.load( name, clazz);
+        return Native.load(name, clazz);
     }
 
     public static byte[] encode(BufferedImage image, int numberOfChannels, int flags) {
         return null;
-    };
+    }
+
+    public static class ByteArray extends Structure {
+        public Pointer data;
+        public NativeLong size;
+
+        @Override
+        protected List<String> getFieldOrder() {
+            return Arrays.asList("data", "size");
+        }
+    }
+
+    ;
 }

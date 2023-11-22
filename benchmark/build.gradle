@@ -32,7 +32,7 @@ jmh {
     fork = 1
     benchmarkMode = ['avgt']
     //jvmArgs = ['-XX:+UseSerialGC','-Xms512M','-Xmx2G','-XX:+UseStringDeduplication', '-XX:-UseJVMCICompiler', '-XX:-EnableJVMCI']
-    jvmArgs = ['-XX:+UseSerialGC','-Xms512M','-Xmx2G','-XX:+UseStringDeduplication']
+    jvmArgs = ['-XX:+UseSerialGC', '-Xms512M', '-Xmx2G', '-XX:+UseStringDeduplication']
     //profilers = ['perf']
 
     //includes = ['FPNGEBenchmark']
@@ -40,7 +40,6 @@ jmh {
 }
 
 jmhRunBytecodeGenerator.dependsOn(':fpng-java:build', ':fpnge-java:build')
-
 
 
 //jmh {

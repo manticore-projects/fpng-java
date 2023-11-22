@@ -1,35 +1,12 @@
 package com.manticore.tools;
 
-import com.sun.jna.Library;
 import com.sun.jna.Native;
-import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
-import com.sun.jna.Structure;
 
 import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
-import java.io.File;
-import java.io.IOException;
-import java.net.URI;
-import java.net.URISyntaxException;
-import java.nio.file.FileVisitOption;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
-import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.List;
 
 public interface FPNGEncoder extends Encoder {
     FPNGEncoder ENCODER = (FPNGEncoder) Encoder.load(FPNGEncoder.class, "fpng");
-
-    void fpng_init();
-
-    ByteArray fpng_encode_image_to_memory(byte[] pImage, int w, int h, int num_chans, int flags);
 
     public static byte[] encode(BufferedImage image, int numberOfChannels, int flags) {
         ENCODER.fpng_init();
@@ -42,11 +19,15 @@ public interface FPNGEncoder extends Encoder {
 
         byte[] rgbaArray = Encoder.getRGBABytes(image, numberOfChannels);
 
-        ByteArray byteArray = ENCODER.fpng_encode_image_to_memory(rgbaArray, image.getWidth(), image.getHeight(), numberOfChannels,  0);
-        byte[] data = byteArray.data.getByteArray(0, byteArray.size.intValue() );
+        ByteArray byteArray = ENCODER.fpng_encode_image_to_memory(rgbaArray, image.getWidth(), image.getHeight(), numberOfChannels, 0);
+        byte[] data = byteArray.data.getByteArray(0, byteArray.size.intValue());
 
         Native.free(Pointer.nativeValue(byteArray.data));
 
         return data;
     }
+
+    void fpng_init();
+
+    ByteArray fpng_encode_image_to_memory(byte[] pImage, int w, int h, int num_chans, int flags);
 }
