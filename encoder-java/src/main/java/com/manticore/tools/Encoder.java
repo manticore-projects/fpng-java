@@ -269,6 +269,4 @@ abstract interface Encoder extends Library {
             return Arrays.asList("data", "size");
         }
     }
-
-    ;
 }
