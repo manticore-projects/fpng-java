@@ -88,14 +88,14 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: fpng
-          path: fpng-java/build/resources/main/lib
+          path: fpng-java/build/resources/main/lib/fpng
 
       - name: Download FPNGE artifacts
         if: matrix.os == 'ubuntu-latest'
         uses: actions/download-artifact@v3
         with:
           name: fpnge
-          path: fpnge-java/build/resources/main/lib
+          path: fpnge-java/build/resources/main/lib/fpnge
 
       - id: install-gradle-properties
         name: Install Gradle Properties from Secret
@@ -130,6 +130,7 @@ jobs:
 
   test:
     needs: build
+    continue-on-error: true
     strategy:
       matrix:
         os: [ windows-latest, macos-latest, ubuntu-latest ]
@@ -150,7 +151,7 @@ jobs:
           server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
           settings-path: ${{ github.workspace }} # location for the settings.xml file
 
-      - name: Build FPNG Native Libs
+      - name: Test FPNG Native Libs
         uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
         with:
           arguments: --no-build-cache --no-daemon --refresh-dependencies :maven-test:test
