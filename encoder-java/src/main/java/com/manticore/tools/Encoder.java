@@ -36,13 +36,19 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.logging.Logger;
 
-abstract interface Encoder extends Library {
-    public final static Logger LOGGER = Logger.getLogger(Encoder.class.getName());
-    public final static String osName = System.getProperty("os.name").toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", "");
-    public final static String osArch = System.getProperty("os.arch").toLowerCase(Locale.US).replaceAll("[^a-z0-9]+", "");
+interface Encoder extends Library {
+    Logger LOGGER = Logger.getLogger(Encoder.class.getName());
+    String osName = System
+            .getProperty("os.name")
+            .toLowerCase(Locale.US)
+            .replaceAll("[^a-z0-9]+", "");
+    String osArch = System
+            .getProperty("os.arch")
+            .toLowerCase(Locale.US)
+            .replaceAll("[^a-z0-9]+", "");
 
     // if we can't use the SSE or AVX byte shuffling, we could fall back to Java based byte swapping
-    public static void swapIntBytes(byte[] bytes) {
+    static void swapIntBytes(byte[] bytes) {
         assert bytes.length % 4==0;
         for (int i = 0; i < bytes.length; i += 4) {
             // swap 0 and 3
@@ -56,11 +62,9 @@ abstract interface Encoder extends Library {
         }
     }
 
-    public static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels) throws IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels) throws IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         // Load the PNG file into a BufferedImage
-        try (
-                InputStream inputStream = ClassLoader.getSystemResourceAsStream(fileName + ".png");
-        ) {
+        try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(fileName + ".png")) {
             assert inputStream!=null;
             BufferedImage image = ImageIO.read(inputStream);
 
@@ -118,13 +122,7 @@ abstract interface Encoder extends Library {
     }
 
     static byte[] getRGBABytes(BufferedImage image, int channels) {
-        BufferedImage convertedImage = new BufferedImage(
-                image.getWidth(),
-                image.getHeight(),
-                channels==4
-                ? BufferedImage.TYPE_4BYTE_ABGR
-                :BufferedImage.TYPE_3BYTE_BGR
-        );
+        BufferedImage convertedImage = new BufferedImage(image.getWidth(), image.getHeight(), channels==4 ? BufferedImage.TYPE_4BYTE_ABGR:BufferedImage.TYPE_3BYTE_BGR);
 
         // Draw the original image onto the new image
         convertedImage.getGraphics().drawImage(image, 0, 0, null);
@@ -164,7 +162,7 @@ abstract interface Encoder extends Library {
             name += "macos";
             extension = ".dylib";
 
-            // not supported or tested yet:
+        // not supported or tested yet:
         } else if (osName.startsWith("solaris") || osName.startsWith("sunos")) {
             name += "sunos";
         } else if (osName.startsWith("aix")) {
@@ -193,7 +191,7 @@ abstract interface Encoder extends Library {
         } else if (osArch.matches("^(x8632|x86|i[3-6]86|ia32|x32)$")) {
             name += File.separator + "x86-32";
 
-            // not supported or tested yet:
+        // not supported or tested yet:
         } else if (osArch.matches("^(ia64w?|itanium64)$")) {
             name += File.separator + "itanium-64";
         } else if ("ia64n".equals(osArch)) {
@@ -238,9 +236,9 @@ abstract interface Encoder extends Library {
 
         name += File.separator + prefix + libraryName + extension;
         if (new File(name).isFile()) {
-            LOGGER.fine("Load native library from " + name);
+            LOGGER.info("Load native library from " + name);
         } else {
-            LOGGER.fine("Extract and Load native library from " + name);
+            LOGGER.info("Extract and Load native library from " + name);
             URL resource = clazz.getResource(resourcePath + "/" + libraryName);
             if (resource!=null) {
                 try {
@@ -256,11 +254,11 @@ abstract interface Encoder extends Library {
         return Native.load(name, clazz);
     }
 
-    public static byte[] encode(BufferedImage image, int numberOfChannels, int flags) {
+    static byte[] encode(BufferedImage image, int numberOfChannels, int flags) {
         return null;
     }
 
-    public static class ByteArray extends Structure {
+    class ByteArray extends Structure {
         public Pointer data;
         public NativeLong size;
 
