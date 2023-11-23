@@ -16,7 +16,7 @@ configurations {
 }
 
 dependencies {
-    implementation project(':encoder-java')
+    api project(':encoder-java')
     api 'net.java.dev.jna:jna:+'
     api 'net.java.dev.jna:jna-platform:+'
 

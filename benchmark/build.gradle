@@ -37,6 +37,8 @@ jmh {
 
     //includes = ['FPNGEBenchmark']
     excludes = ['ByteBufferBenchmark']
+
+    resultFormat = 'JSON'
 }
 
 jmhRunBytecodeGenerator.dependsOn(':fpng-java:build', ':fpnge-java:build')
