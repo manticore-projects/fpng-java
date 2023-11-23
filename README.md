@@ -1,4 +1,5 @@
-# [fpng-java](http://manticore-projects.com/fpng-java) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)
+# [fpng-java](http://manticore-projects.com/fpng-java) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml) [![GitHub release](https://img.shields.io/github/release/manticore-projects/fpng-java.svg)](https://GitHub.com/manticore-projects/fpng-java/releases/) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+
 
 Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng) and the AVX optimized
 native [FPNGe Encoder](https://github.com/veluca93/fpnge). Contains  **64 bit binaries for Windows, Linux and
@@ -59,6 +60,7 @@ PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   375
 
 ![Small Image Benchmark Results](src/site/sphinx/_static/benchmark_small.svg "Small Image Benchmark Results")
 ![Large Image Benchmark Results](src/site/sphinx/_static/benchmark_large.svg "Large Image Benchmark Results")
+**Remark:** Score in milli-seconds per encoding, smaller is better.
 
 # Maven Artifacts
 
