@@ -1,12 +1,12 @@
-# fpng-java
+# [fpng-java](http://manticore-projects.com/fpng-java) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)
 
 Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng) and the AVX optimized
-native [FPNGE Encoder](https://github.com/veluca93/fpnge).
-It contains an additional SSE translation from Java's ABGR 4 byte into the expected RGBA 4 byte arrays (AVX has been
-tested to be slower, likely due to need for a 32-bit alignment). The JAR contains the **binaries for Windows, Linux and
-MacOS** (all 64 bit).
+native [FPNGe Encoder](https://github.com/veluca93/fpnge). Contains  **64 bit binaries for Windows, Linux and
+MacOS**, built and tested on GitHub Runners.
 
-[![Java CI with Gradle](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle.yml) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)
+An additional SSE translation from Java's ABGR 4 byte into the expected RGBA 4 byte arrays is provided. There is an AVX version too, which has been tested to be slower (likely due to need for a 32-bit alignment). 
+
+![C++](https://img.shields.io/badge/c++-%2300599C.svg?style=for-the-badge&logo=c%2B%2B&logoColor=white) ![Java](https://img.shields.io/badge/java-%23ED8B00.svg?style=for-the-badge&logo=openjdk&logoColor=white) ![Linux](https://img.shields.io/badge/Linux-FCC624?style=for-the-badge&logo=linux&logoColor=black) ![macOS](https://img.shields.io/badge/mac%20os-000000?style=for-the-badge&logo=macos&logoColor=F0F0F0) ![Windows](https://img.shields.io/badge/Windows-0078D6?style=for-the-badge&logo=windows&logoColor=white) ![Git](https://img.shields.io/badge/git-%23F05033.svg?style=for-the-badge&logo=git&logoColor=white)
 
 # How to use it
 
@@ -14,16 +14,16 @@ MacOS** (all 64 bit).
 
 There are 7 projects included:
 
-- `encoder` is a basis class for loading the native libraries, byte arrays and tests
+- `encoder` is an abstract base class for loading the native libraries, byte arrays and tests
 - `fpng` is the C++ source from [FPNG](https://github.com/richgel999/fpng) with an additional C wrapper
 - `fpng-java` is the Java Wrapper, depending on `fpng` and `JNA`
-- `fpnge` is the AVX optimized C++ source from [FPNGE](https://github.com/veluca93/fpnge) with an additional C wrapper
+- `fpnge` is the AVX optimized C++ source from [FPNGe](https://github.com/veluca93/fpnge) with an additional C wrapper
 - `fpnge-java` is the Java Wrapper, depending on `fpnge` and `JNA`
 - `benchmark` are optional JMH based performance tests
 - `maven-test` as a most simple Java project stub for testing the Maven dependencies and the Native Libs on various OS
-  after publishing
+  after publishing.
 
-The following Gradle task will compile FPNG with `-O3 -march-native` and wrap it into a JAR via JNA.
+The following Gradle task will compile FPNG with `-O3 -march=x86-64' -mtune=generic` and wrap it into a JAR via JNA.
 
 ```bash
 git clone --depth 1 https://github.com/manticore-projects/fpng-java.git
@@ -31,7 +31,7 @@ cd fpng-java
 gradle clean assemble
 ```
 
-The artifact will be written to: `.fpng-java/build/libs/fpng-java-0.99.0-SNAPSHOT.jar`
+The artifact will be written to: `.fpng-java/build/libs/fpng-java-1.1.0-SNAPSHOT.jar`
 
 # Benchmarks
 
@@ -42,43 +42,29 @@ gradle clean assemble jmh
 ```
 
 ```text
-GRAAL VM 21
-Benchmark                                           (imageName)  Mode  Cnt     Score    Error  Units
-FPNGEBenchmark.encode                               example.png  avgt    3     3.147 ±  0.062  ms/op
-FPNGEBenchmark.encode                   looklet-look-scale6.png  avgt    3   188.284 ± 84.303  ms/op
-FPNGEncoderBenchmark.encode                         example.png  avgt    3     6.310 ±  0.115  ms/op
-FPNGEncoderBenchmark.encode             looklet-look-scale6.png  avgt    3   322.365 ± 91.968  ms/op
-ImageIOEncoderBenchmark.encode                      example.png  avgt    3    48.085 ±  3.540  ms/op
-ImageIOEncoderBenchmark.encode          looklet-look-scale6.png  avgt    3  1239.409 ± 15.437  ms/op
-ObjectPlanetPNGEncoderBenchmark.encode              example.png  avgt    3    32.568 ±  1.147  ms/op
-ObjectPlanetPNGEncoderBenchmark.encode  looklet-look-scale6.png  avgt    3   876.725 ± 52.697  ms/op
-PNGEncoderBenchmark.encode                          example.png  avgt    3    29.178 ±  0.287  ms/op
-PNGEncoderBenchmark.encode              looklet-look-scale6.png  avgt    3   572.452 ± 17.830  ms/op
-PNGEncoderBenchmark.encodeFastest                   example.png  avgt    3    17.461 ±  2.498  ms/op
-PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   367.480 ±  6.410  ms/op
+Benchmark                                           (imageName)  Mode  Cnt     Score     Error  Units
+FPNGEBenchmark.encode                               example.png  avgt    3     2.773 ±   0.473  ms/op
+FPNGEBenchmark.encode                   looklet-look-scale6.png  avgt    3   284.636 ± 162.091  ms/op
+FPNGEncoderBenchmark.encode                         example.png  avgt    3     6.597 ±   0.175  ms/op
+FPNGEncoderBenchmark.encode             looklet-look-scale6.png  avgt    3   482.187 ± 129.254  ms/op
+ImageIOEncoderBenchmark.encode                      example.png  avgt    3    48.371 ±  12.259  ms/op
+ImageIOEncoderBenchmark.encode          looklet-look-scale6.png  avgt    3  1292.434 ± 139.938  ms/op
+ObjectPlanetPNGEncoderBenchmark.encode              example.png  avgt    3    31.850 ±   2.070  ms/op
+ObjectPlanetPNGEncoderBenchmark.encode  looklet-look-scale6.png  avgt    3   935.261 ± 104.956  ms/op
+PNGEncoderBenchmark.encode                          example.png  avgt    3    29.372 ±   0.738  ms/op
+PNGEncoderBenchmark.encode              looklet-look-scale6.png  avgt    3   575.066 ±  40.855  ms/op
+PNGEncoderBenchmark.encodeFastest                   example.png  avgt    3    17.480 ±   0.983  ms/op
+PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   375.172 ±  18.875  ms/op
 ```
 
-```text
-GRAALVM 11
-Benchmark                                           (imageName)  Mode  Cnt     Score     Error  Units
-FPNGEBenchmark.encode                               example.png  avgt    3     2.731 ±   0.018  ms/op
-FPNGEBenchmark.encode                   looklet-look-scale6.png  avgt    3   182.363 ± 159.723  ms/op
-FPNGEncoderBenchmark.encode                         example.png  avgt    3     6.491 ±   0.526  ms/op
-FPNGEncoderBenchmark.encode             looklet-look-scale6.png  avgt    3   313.017 ±  71.408  ms/op
-ImageIOEncoderBenchmark.encode                      example.png  avgt    3    47.353 ±   3.971  ms/op
-ImageIOEncoderBenchmark.encode          looklet-look-scale6.png  avgt    3  1199.796 ±  47.642  ms/op
-ObjectPlanetPNGEncoderBenchmark.encode              example.png  avgt    3    28.079 ±   0.101  ms/op
-ObjectPlanetPNGEncoderBenchmark.encode  looklet-look-scale6.png  avgt    3   660.480 ±  79.759  ms/op
-PNGEncoderBenchmark.encode                          example.png  avgt    3    29.172 ±   0.288  ms/op
-PNGEncoderBenchmark.encode              looklet-look-scale6.png  avgt    3   574.485 ±  16.903  ms/op
-PNGEncoderBenchmark.encodeFastest                   example.png  avgt    3    17.516 ±   0.135  ms/op
-PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   360.417 ±   8.995  ms/op
-```
+![Small Image Benchmark Results](src/site/sphinx/_static/benchmark_small.svg "Small Image Benchmark Results")
+![Large Image Benchmark Results](src/site/sphinx/_static/benchmark_large.svg "Large Image Benchmark Results")
 
 # Maven Artifacts
 
 ```xml
 <repositories>
+    <!-- Only needed when using the FPNG SSE2 Encoder -->
     <repository>
         <id>sonatype-snapshots</id>
         <snapshots>
@@ -88,20 +74,17 @@ PNGEncoderBenchmark.encodeFastest       looklet-look-scale6.png  avgt    3   360
     </repository>
 </repositories>
 <dependencies>
-    <dependency>
-        <groupId>com.manticore-projects.tools</groupId>
-        <artifactId>encoder-java</artifactId>
-        <version>1.0.0</version>
-    </dependency>
+    <!-- Only needed when using the FPNG SSE2 Encoder -->
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpng-java</artifactId>
-        <version>1.0.0</version>
+        <version>1.1.0</version>
     </dependency>
+    <!-- Only needed when using the FPNGe AVX2 Encoder -->
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpnge-java</artifactId>
-        <version>1.0.0</version>
+        <version>1.1.0</version>
     </dependency>
 </dependencies>
 ```
@@ -114,13 +97,15 @@ repositories {
     maven {
         url = uri('https://s01.oss.sonatype.org/content/repositories/releases/')
     }
+    // Only needed when loading Snapshots
     maven {
         url = uri('https://s01.oss.sonatype.org/content/repositories/snapshots/')
     }
 }
 dependencies {
-    implementation 'com.manticore-projects.tools:encoder-java:+'
+    // Only needed when using the FPNG SSE2 Encoder
     implementation 'com.manticore-projects.tools:fpng-java:+'
+    // Only needed when using the FPNGe AVX2 Encoder
     implementation 'com.manticore-projects.tools:fpnge-java:+'
 }
 ```
