@@ -64,7 +64,7 @@ interface Encoder extends Library {
 
     static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels) throws IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
         // Load the PNG file into a BufferedImage
-        try (InputStream inputStream = ClassLoader.getSystemResourceAsStream(fileName + ".png")) {
+        try (InputStream inputStream = encoderClass.getResourceAsStream("/" + fileName + ".png")) {
             assert inputStream!=null;
             BufferedImage image = ImageIO.read(inputStream);
 
