@@ -1622,10 +1622,10 @@ void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
 //   }
 
 extern "C" EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels,
-                              unsigned char* pImage, size_t width, size_t height) {
+                              unsigned char* pImage, size_t width, size_t height, int comp_level) {
 
       struct FPNGEOptions options;
-      FPNGEFillOptions(&options, 1, FPNGE_CICP_NONE);
+      FPNGEFillOptions(&options, comp_level, FPNGE_CICP_NONE);
 
       size_t row_stride = width * num_channels * bytes_per_channel;
 

@@ -95,7 +95,7 @@ inline size_t FPNGEOutputAllocSize(size_t bytes_per_channel,
 }
 
 EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels,
-                              unsigned char* pImage, size_t width, size_t height);
+                              unsigned char* pImage, size_t width, size_t height, int comp_level);
 
 #ifdef __cplusplus
 }
