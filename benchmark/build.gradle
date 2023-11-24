@@ -27,8 +27,8 @@ jmh {
     timeUnit = 'ms' // Output time unit. Available time units are: [m, s, ms, us, ns].
     verbosity = 'NORMAL' // Verbosity mode. Available modes are: [SILENT, NORMAL, EXTRA]
     warmup = '5s' // Time to spend at each warmup iteration.
-    warmupIterations = 2
-    iterations = 3
+    warmupIterations = 3
+    iterations = 10
     fork = 1
     benchmarkMode = ['avgt']
     //jvmArgs = ['-XX:+UseSerialGC','-Xms512M','-Xmx2G','-XX:+UseStringDeduplication', '-XX:-UseJVMCICompiler', '-XX:-EnableJVMCI']

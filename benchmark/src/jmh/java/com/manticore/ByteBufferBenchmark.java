@@ -93,6 +93,8 @@ public class ByteBufferBenchmark extends EncoderBenchmark {
         // swap the bytes to RGBA (this maybe could be done in C faster)
         swapIntBytes(rgbaArray);
 
+        size = rgbaArray.length;
+
         blackhole.consume(rgbaArray);
     }
 

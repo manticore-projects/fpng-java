@@ -12,7 +12,7 @@ public class ImageIOEncoderBenchmark extends EncoderBenchmark {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
         ImageIO.write(image, "PNG", os);
         byte[] result = os.toByteArray();
-
+        size = result.length;
         blackhole.consume(result);
     }
 }

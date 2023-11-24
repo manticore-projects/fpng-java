@@ -9,8 +9,10 @@ public class PNGEncoderBenchmark extends EncoderBenchmark {
         byte[] result = new PngEncoder()
                 .withBufferedImage(image)
                 .withMultiThreadedCompressionEnabled(false)
-                .withCompressionLevel(2)
+                .withPredictorEncoding(true)
+                .withCompressionLevel(1)
                 .toBytes();
+        size = result.length;
         blackhole.consume(result);
     }
 
@@ -19,8 +21,10 @@ public class PNGEncoderBenchmark extends EncoderBenchmark {
         byte[] result = new PngEncoder()
                 .withBufferedImage(image)
                 .withMultiThreadedCompressionEnabled(false)
+                .withPredictorEncoding(false)
                 .withCompressionLevel(1)
                 .toBytes();
+        size = result.length;
         blackhole.consume(result);
     }
 }
