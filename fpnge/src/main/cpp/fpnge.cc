@@ -1591,35 +1591,28 @@ extern "C" size_t FPNGEEncode(size_t bytes_per_channel, size_t num_channels,
   return writer.bytes_written;
 }
 
-void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
+extern "C" EXPORT void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
     const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
 
     for (int i = 0; i < numPixels; i += 4) {
-        __m128i abgr = _mm_load_si128((__m128i*)(pImage + i * 4));
+        __m128i abgr = _mm_loadu_si128((__m128i*)(pImage + i * 4));
         __m128i rgba = _mm_shuffle_epi8(abgr, shuffleMask);
-        _mm_store_si128((__m128i*)(pImage + i * 4), rgba);
+        _mm_storeu_si128((__m128i*)(pImage + i * 4), rgba);
     }
 }
 
-//void copyUnalignedToAligned(void* src, void** alignedDst, size_t size, size_t alignment) {
-//    // Allocate aligned memory
-//    *alignedDst = _mm_malloc(size, alignment);
-//
-//    // Copy unaligned data to aligned buffer
-//    memcpy(*alignedDst, src, size);
-//}
+extern "C" EXPORT void swapChannelsBGRtoRGB(unsigned char* pImage, int numPixels) {
+    // Ensure numPixels is a multiple of 4 for alignment
+    int numIterations = numPixels / 4;
 
-//void swapChannelsABGRtoRGBA_AVX(unsigned char* pImage, int numPixels ) {
-//      const __m256i shuffleMask = _mm256_set_epi8 (
-//            12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
-//            12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3
-//        );
-//       for (int i = 0; i < numPixels; i += 8) {
-//                  __m256i abgr = _mm256_load_si256((__m256i*)(pImage + i * 4));
-//                  __m256i rgba = _mm256_shuffle_epi8(abgr, shuffleMask);
-//                  _mm256_store_si256((__m256i*)(pImage + i * 4), rgba);
-//          }
-//   }
+    // 3 * 4 = 12, so don't shuffle the last 4 bytes
+    const __m128i shuffleMask = _mm_set_epi8( 15, 14, 13, 12, 9, 10, 11, 6, 7, 8, 3, 4, 5, 0, 1, 2 );
+    for (int i = 0; i < numIterations; ++i) {
+        __m128i pixels = _mm_loadu_si128((__m128i*)(pImage + i * 4 * 3));
+        __m128i shuffled = _mm_shuffle_epi8(pixels, shuffleMask);
+        _mm_storeu_si128((__m128i*)(pImage + i * 4 * 3), shuffled);
+    }
+}
 
 extern "C" EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels,
                               unsigned char* pImage, size_t width, size_t height, int comp_level) {
@@ -1629,19 +1622,12 @@ extern "C" EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_c
 
       size_t row_stride = width * num_channels * bytes_per_channel;
 
-      // Align the array to 32 bit, if AVX should be used
-      // This has been slower even than the Java Byte Swap in the benchmarks
-      // so we keep only notes
-      // unsigned char* alignedArray;
-      // copyUnalignedToAligned(pImage, (void**)&alignedArray, width * height * 4, 32);
-
-      // Call the channel swapping function
-      // swapChannelsABGRtoRGBA_AVX(alignedArray, width * height);
-
       // 4 channels will arrive as BufferedImage.TYPE_4BYTE_ABGR
       // 3 channels will arrive as BufferedImage.TYPE_3BYTE_BGR
       if (num_channels==(uint32_t) 4) {
-          swapChannelsABGRtoRGBA( (unsigned char*) pImage, width * height);
+            swapChannelsABGRtoRGBA( (unsigned char*) pImage, width * height);
+      } else {
+            swapChannelsBGRtoRGB( (unsigned char*) pImage, width * height);
       }
 
       CharArray* data = (CharArray*) malloc( sizeof(CharArray) );
@@ -1650,8 +1636,6 @@ extern "C" EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_c
 
       data->size = FPNGEEncode(bytes_per_channel, num_channels, pImage, width, row_stride,
                                                   height, data->data, &options);
-
-      // _mm_free(alignedArray);
 
       return data;
 }

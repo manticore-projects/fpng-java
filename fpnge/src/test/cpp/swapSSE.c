@@ -5,14 +5,13 @@
 #include <string.h>
 
 
-void swapChannelsABGRtoRGBA_inplace(void* pImage, int numPixels) {
+void swapChannelsABGRtoRGBA_inplace(unsigned char* pImage, int numPixels) {
     const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
-    unsigned char* src = (unsigned char*)pImage;
 
     for (int i = 0; i < numPixels; i += 4) {
-        __m128i abgr = _mm_load_si128((__m128i*)(src + i * 4));
+        __m128i abgr = _mm_load_si128((__m128i*)(pImage + i * 4));
         __m128i rgba = _mm_shuffle_epi8(abgr, shuffleMask);
-        _mm_store_si128((__m128i*)(src + i * 4), rgba);
+        _mm_store_si128((__m128i*)(pImage + i * 4), rgba);
     }
 }
 

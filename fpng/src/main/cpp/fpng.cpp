@@ -3207,9 +3207,22 @@ extern "C" {
         const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
 
         for (int i = 0; i < numPixels; i += 4) {
-            __m128i abgr = _mm_load_si128((__m128i*)(pImage + i * 4));
+            __m128i abgr = _mm_loadu_si128((__m128i*)(pImage + i * 4));
             __m128i rgba = _mm_shuffle_epi8(abgr, shuffleMask);
-            _mm_store_si128((__m128i*)(pImage + i * 4), rgba);
+            _mm_storeu_si128((__m128i*)(pImage + i * 4), rgba);
+        }
+    }
+
+    EXPORT void swapChannelsBGRtoRGB(unsigned char* pImage, int numPixels) {
+        // Ensure numPixels is a multiple of 4 for alignment
+        int numIterations = numPixels / 4;
+
+        // 3 * 4 = 12, so don't shuffle the last 4 bytes
+        const __m128i shuffleMask = _mm_set_epi8( 15, 14, 13, 12, 9, 10, 11, 6, 7, 8, 3, 4, 5, 0, 1, 2 );
+        for (int i = 0; i < numIterations; ++i) {
+            __m128i pixels = _mm_loadu_si128((__m128i*)(pImage + i * 4 * 3));
+            __m128i shuffled = _mm_shuffle_epi8(pixels, shuffleMask);
+            _mm_storeu_si128((__m128i*)(pImage + i * 4 * 3), shuffled);
         }
     }
 
@@ -3221,6 +3234,8 @@ extern "C" {
         // 3 channels will arrive as BufferedImage.TYPE_3BYTE_BGR
         if (num_chans==(uint32_t) 4) {
             swapChannelsABGRtoRGBA( (unsigned char*) pImage, w * h);
+        } else {
+            swapChannelsBGRtoRGB( (unsigned char*) pImage, w * h);
         }
 
         bool result = fpng::fpng_encode_image_to_memory( pImage, w, h, num_chans, out_buf, flags);
