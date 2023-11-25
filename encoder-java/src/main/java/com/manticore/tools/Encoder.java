@@ -62,17 +62,31 @@ interface Encoder extends Library {
         }
     }
 
-    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels) throws IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    static BufferedImage readImageFromClasspath(Class<? extends Encoder> encoderClass, String fileName) throws IOException {
+        String resourceStr = "/" + fileName + ".png";
+
         // Load the PNG file into a BufferedImage
-        try (InputStream inputStream = encoderClass.getResourceAsStream("/" + fileName + ".png")) {
-            assert inputStream!=null;
-            BufferedImage image = ImageIO.read(inputStream);
+        try (InputStream inputStream = encoderClass.getResourceAsStream(resourceStr)) {
+            if (inputStream!=null) {
+                return  ImageIO.read(inputStream);
+            } else {
+                throw new IOException("Resource '" + resourceStr + "' not found in " + encoderClass.getCanonicalName() );
+            }
+        }
+    }
 
-            Method encode = encoderClass.getMethod("encode", BufferedImage.class, int.class, int.class);
-            byte[] data = (byte[]) encode.invoke(null, image, channels, 0);
+    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels) throws IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        encoderTest(encoderClass, fileName, channels, 5, true);
+    }
 
+    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels, int compressLevel, boolean writeTempFiles) throws IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+        BufferedImage image = readImageFromClasspath(encoderClass, fileName);
+
+        Method encode = encoderClass.getMethod("encode", BufferedImage.class, int.class, int.class);
+        byte[] data = (byte[]) encode.invoke(null, image, channels, compressLevel);
+
+        if (writeTempFiles) {
             File file = File.createTempFile(encoderClass.getSimpleName() + "_" + fileName + "_" + channels + "_", ".png");
-
             FileOutputStream fileOutputStream = new FileOutputStream(file);
             fileOutputStream.write(data);
             fileOutputStream.flush();
