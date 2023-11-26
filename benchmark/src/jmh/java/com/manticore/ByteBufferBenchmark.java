@@ -7,7 +7,7 @@ import java.awt.image.DataBufferByte;
 
 public class ByteBufferBenchmark extends EncoderBenchmark {
     public static void swapIntBytes(byte[] bytes) {
-        assert bytes.length % 4==0;
+        assert bytes.length % 4 == 0;
         for (int i = 0; i < bytes.length; i += 4) {
             // swap 0 and 3
             byte tmp = bytes[i];
@@ -51,8 +51,7 @@ public class ByteBufferBenchmark extends EncoderBenchmark {
         BufferedImage convertedImage = new BufferedImage(
                 image.getWidth(),
                 image.getHeight(),
-                BufferedImage.TYPE_4BYTE_ABGR
-        );
+                BufferedImage.TYPE_4BYTE_ABGR);
 
         // Draw the original image onto the new image
         convertedImage.getGraphics().drawImage(image, 0, 0, null);
@@ -65,10 +64,10 @@ public class ByteBufferBenchmark extends EncoderBenchmark {
 
         // Swap the positions of red and blue channels (ABGR to RGBA)
         for (int i = 0; i < rgbaArray.length; i += 4) {
-            convertedData[i] = rgbaArray[i + 3];  // Red
-            convertedData[i + 1] = rgbaArray[i + 2];  // Green
-            convertedData[i + 2] = rgbaArray[i + 1];  // Blue
-            convertedData[i + 3] = rgbaArray[i];  // Alpha
+            convertedData[i] = rgbaArray[i + 3]; // Red
+            convertedData[i + 1] = rgbaArray[i + 2]; // Green
+            convertedData[i + 2] = rgbaArray[i + 1]; // Blue
+            convertedData[i + 3] = rgbaArray[i]; // Alpha
         }
 
         blackhole.consume(convertedData);
@@ -80,8 +79,7 @@ public class ByteBufferBenchmark extends EncoderBenchmark {
         BufferedImage convertedImage = new BufferedImage(
                 image.getWidth(),
                 image.getHeight(),
-                BufferedImage.TYPE_4BYTE_ABGR
-        );
+                BufferedImage.TYPE_4BYTE_ABGR);
 
         // Draw the original image onto the new image
         convertedImage.getGraphics().drawImage(image, 0, 0, null);

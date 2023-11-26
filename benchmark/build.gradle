@@ -4,7 +4,6 @@ plugins {
 }
 
 group = 'com.manticore.tools'
-version = '1.0-SNAPSHOT'
 
 repositories {
     mavenCentral()
@@ -86,5 +85,34 @@ jmhRunBytecodeGenerator.dependsOn(':fpng-java:build', ':fpnge-java:build')
 java {
     withSourcesJar()
     withJavadocJar()
+}
+
+spotless {
+        java {
+            indentWithSpaces(4)
+            eclipse().configFile(  rootProject.file('config/formatter/eclipse-java-google-style.xml') )
+        }
+}
+
+spotbugsMain {
+    reports {
+        html {
+            enabled = true
+            destination = rootProject.file("build/reports/spotbugs/main/spotbugs.html")
+            stylesheet = 'fancy-hist.xsl'
+        }
+    }
+}
+
+checkstyle {
+    sourceSets = [sourceSets.main, sourceSets.test]
+    configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+}
+
+tasks.withType(Checkstyle).configureEach {
+    reports {
+        xml.required = false
+        html.required = true
+    }
 }
 

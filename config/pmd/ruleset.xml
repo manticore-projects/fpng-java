@@ -85,7 +85,6 @@ under the License.
             <property name="methodReportLevel" value="120"/>
         </properties>
     </rule>
-    <rule ref="category/java/design.xml/ExcessiveMethodLength"/>
     <rule ref="category/java/bestpractices.xml/SwitchStmtsShouldHaveDefault"/>
 
     <rule ref="category/java/errorprone.xml/AvoidBranchingStatementAsLastInLoop"/>

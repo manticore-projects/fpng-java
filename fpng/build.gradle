@@ -54,5 +54,6 @@ tasks.register('copyNativeLib', Copy) {
 
     // the native library file extensions on different platforms
     include '**/*.dll', '**/*.so', 'build/lib/**/*.dylib'
+    duplicatesStrategy=DuplicatesStrategy.INCLUDE
 }
 

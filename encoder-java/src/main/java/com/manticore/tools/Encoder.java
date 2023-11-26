@@ -38,18 +38,18 @@ import java.util.logging.Logger;
 
 interface Encoder extends Library {
     Logger LOGGER = Logger.getLogger(Encoder.class.getName());
-    String osName = System
+    String OS_NAME = System
             .getProperty("os.name")
             .toLowerCase(Locale.US)
             .replaceAll("[^a-z0-9]+", "");
-    String osArch = System
+    String OS_ARCH = System
             .getProperty("os.arch")
             .toLowerCase(Locale.US)
             .replaceAll("[^a-z0-9]+", "");
 
     // if we can't use the SSE or AVX byte shuffling, we could fall back to Java based byte swapping
     static void swapIntBytes(byte[] bytes) {
-        assert bytes.length % 4==0;
+        assert bytes.length % 4 == 0;
         for (int i = 0; i < bytes.length; i += 4) {
             // swap 0 and 3
             byte tmp = bytes[i];
@@ -62,31 +62,38 @@ interface Encoder extends Library {
         }
     }
 
-    static BufferedImage readImageFromClasspath(Class<? extends Encoder> encoderClass, String fileName) throws IOException {
+    static BufferedImage readImageFromClasspath(Class<? extends Encoder> encoderClass,
+            String fileName) throws IOException {
         String resourceStr = "/" + fileName + ".png";
 
         // Load the PNG file into a BufferedImage
         try (InputStream inputStream = encoderClass.getResourceAsStream(resourceStr)) {
-            if (inputStream!=null) {
-                return  ImageIO.read(inputStream);
+            if (inputStream != null) {
+                return ImageIO.read(inputStream);
             } else {
-                throw new IOException("Resource '" + resourceStr + "' not found in " + encoderClass.getCanonicalName() );
+                throw new IOException("Resource '" + resourceStr + "' not found in "
+                        + encoderClass.getCanonicalName());
             }
         }
     }
 
-    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels) throws IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels)
+            throws IOException, NoSuchMethodException, InvocationTargetException,
+            IllegalAccessException {
         encoderTest(encoderClass, fileName, channels, 5, true);
     }
 
-    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels, int compressLevel, boolean writeTempFiles) throws IOException, NoSuchMethodException, InvocationTargetException, IllegalAccessException {
+    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels,
+            int compressLevel, boolean writeTempFiles) throws IOException, NoSuchMethodException,
+            InvocationTargetException, IllegalAccessException {
         BufferedImage image = readImageFromClasspath(encoderClass, fileName);
 
         Method encode = encoderClass.getMethod("encode", BufferedImage.class, int.class, int.class);
         byte[] data = (byte[]) encode.invoke(null, image, channels, compressLevel);
 
         if (writeTempFiles) {
-            File file = File.createTempFile(encoderClass.getSimpleName() + "_" + fileName + "_" + channels + "_", ".png");
+            File file = File.createTempFile(
+                    encoderClass.getSimpleName() + "_" + fileName + "_" + channels + "_", ".png");
             FileOutputStream fileOutputStream = new FileOutputStream(file);
             fileOutputStream.write(data);
             fileOutputStream.flush();
@@ -94,11 +101,13 @@ interface Encoder extends Library {
         }
     }
 
-    // copy a folder with all its content from inside the JAR to a filesystem destinantion (e.g. '/tmp/)
+    // copy a folder with all its content from inside the JAR to a filesystem destinantion (e.g.
+    // '/tmp/)
     static void extractFilesFromURI(URI uri, String target) throws IOException {
         LOGGER.info("Extract native libraries from: " + uri.toASCIIString());
 
-        // see: https://docs.oracle.com/javase/7/docs/technotes/guides/io/fsp/zipfilesystemprovider.html
+        // see:
+        // https://docs.oracle.com/javase/7/docs/technotes/guides/io/fsp/zipfilesystemprovider.html
         // create the file system before we can access the path within the zip
         // this will fail when not having a zip
         Map<String, String> env = new HashMap<>();
@@ -115,28 +124,36 @@ interface Encoder extends Library {
         File targetFolder = new File(target);
         targetFolder.deleteOnExit();
 
-        Files.walkFileTree(uriPath, EnumSet.noneOf(FileVisitOption.class), Integer.MAX_VALUE, new SimpleFileVisitor<Path>() {
-            @Override
-            public FileVisitResult visitFile(Path file, BasicFileAttributes attrs) throws IOException {
-                Files.copy(file, targetFolder.toPath().resolve(uriPath.relativize(file).toString()), StandardCopyOption.REPLACE_EXISTING);
-                return FileVisitResult.CONTINUE;
-            }
+        Files.walkFileTree(uriPath, EnumSet.noneOf(FileVisitOption.class), Integer.MAX_VALUE,
+                new SimpleFileVisitor<Path>() {
+                    @Override
+                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
+                            throws IOException {
+                        Files.copy(file,
+                                targetFolder.toPath().resolve(uriPath.relativize(file).toString()),
+                                StandardCopyOption.REPLACE_EXISTING);
+                        return FileVisitResult.CONTINUE;
+                    }
 
-            @Override
-            public FileVisitResult visitFileFailed(Path file, IOException exc) throws IOException {
-                return FileVisitResult.CONTINUE;
-            }
+                    @Override
+                    public FileVisitResult visitFileFailed(Path file, IOException exc)
+                            throws IOException {
+                        return FileVisitResult.CONTINUE;
+                    }
 
-            @Override
-            public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) throws IOException {
-                Files.createDirectories(targetFolder.toPath().resolve(uriPath.relativize(dir).toString()));
-                return FileVisitResult.CONTINUE;
-            }
-        });
+                    @Override
+                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
+                            throws IOException {
+                        Files.createDirectories(
+                                targetFolder.toPath().resolve(uriPath.relativize(dir).toString()));
+                        return FileVisitResult.CONTINUE;
+                    }
+                });
     }
 
     static byte[] getRGBABytes(BufferedImage image, int channels) {
-        BufferedImage convertedImage = new BufferedImage(image.getWidth(), image.getHeight(), channels==4 ? BufferedImage.TYPE_4BYTE_ABGR:BufferedImage.TYPE_3BYTE_BGR);
+        BufferedImage convertedImage = new BufferedImage(image.getWidth(), image.getHeight(),
+                channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR : BufferedImage.TYPE_3BYTE_BGR);
 
         // Draw the original image onto the new image
         convertedImage.getGraphics().drawImage(image, 0, 0, null);
@@ -144,19 +161,19 @@ interface Encoder extends Library {
         return dataBuffer.getData();
     }
 
-    static Object load(Class<? extends Library> clazz, String libraryName) {
+    static Object load(Class<? extends Library> clazz, final String libraryName) {
         String resourcePath = "/lib";
         String prefix = "lib";
         String extension = ".so";
-        String targetFolder = System.getProperty("java.io.tmpdir") + File.separator + libraryName + File.separator;
+        String targetFolder = System.getProperty("java.io.tmpdir") + File.separator + libraryName
+                + File.separator;
 
         // clip the prefix
         // on Linux, MacOS: libfpng.*
         // on Windows: fpng.dll
-        if (libraryName.startsWith(prefix)) {
-            libraryName = libraryName.substring(prefix.length());
-            LOGGER.fine("Clipping prefix and setting library name = '" + libraryName + '"');
-        }
+        String strippedLibraryName = libraryName.startsWith(prefix)
+                ? libraryName.substring(prefix.length())
+                : libraryName;
 
         // linux/x86-64
         // linux/x86
@@ -165,103 +182,108 @@ interface Encoder extends Library {
         String name = targetFolder;
 
         // credits to Copyright 2014 Trustin Heuiseung Lee.
-        // taken from: https://github.com/trustin/os-maven-plugin/blob/master/src/main/java/kr/motd/maven/os/Detector.java
-        if (osName.startsWith("linux")) {
+        // taken from:
+        // https://github.com/trustin/os-maven-plugin/blob/master/src/main/java/kr/motd/maven/os/Detector.java
+        if (OS_NAME.startsWith("linux")) {
             name += "linux";
-        } else if (osName.startsWith("windows")) {
+        } else if (OS_NAME.startsWith("windows")) {
             name += "windows";
             prefix = "";
             extension = ".dll";
-        } else if (osName.startsWith("mac") || osName.startsWith("osx")) {
+        } else if (OS_NAME.startsWith("mac") || OS_NAME.startsWith("osx")) {
             name += "macos";
             extension = ".dylib";
 
-        // not supported or tested yet:
-        } else if (osName.startsWith("solaris") || osName.startsWith("sunos")) {
+            // not supported or tested yet:
+        } else if (OS_NAME.startsWith("solaris") || OS_NAME.startsWith("sunos")) {
             name += "sunos";
-        } else if (osName.startsWith("aix")) {
+        } else if (OS_NAME.startsWith("aix")) {
             name += "aix";
             extension = ".a";
-        } else if (osName.startsWith("hpux")) {
+        } else if (OS_NAME.startsWith("hpux")) {
             name += "hpux";
             extension = ".sl";
-        } else if (osName.startsWith("os400") && (osName.length() <= 5 || !Character.isDigit(osName.charAt(5)))) {
+        } else if (OS_NAME.startsWith("os400")
+                && (OS_NAME.length() <= 5 || !Character.isDigit(OS_NAME.charAt(5)))) {
             // Avoid the names such as os4000
             name += "os400";
-        } else if (osName.startsWith("freebsd")) {
+        } else if (OS_NAME.startsWith("freebsd")) {
             name += "freebsd";
-        } else if (osName.startsWith("openbsd")) {
+        } else if (OS_NAME.startsWith("openbsd")) {
             name += "openbsd";
-        } else if (osName.startsWith("netbsd")) {
+        } else if (OS_NAME.startsWith("netbsd")) {
             name += "netbsd";
-        } else if (osName.startsWith("zos")) {
+        } else if (OS_NAME.startsWith("zos")) {
             name += "zos";
         }
 
         // credits to Copyright 2014 Trustin Heuiseung Lee.
-        // taken from: https://github.com/trustin/os-maven-plugin/blob/master/src/main/java/kr/motd/maven/os/Detector.java
-        if (osArch.matches("^(x8664|amd64|ia32e|em64t|x64)$")) {
+        // taken from:
+        // https://github.com/trustin/os-maven-plugin/blob/master/src/main/java/kr/motd/maven/os/Detector.java
+        if (OS_ARCH.matches("^(x8664|amd64|ia32e|em64t|x64)$")) {
             name += File.separator + "x86-64";
-        } else if (osArch.matches("^(x8632|x86|i[3-6]86|ia32|x32)$")) {
+        } else if (OS_ARCH.matches("^(x8632|x86|i[3-6]86|ia32|x32)$")) {
             name += File.separator + "x86-32";
 
-        // not supported or tested yet:
-        } else if (osArch.matches("^(ia64w?|itanium64)$")) {
+            // not supported or tested yet:
+        } else if (OS_ARCH.matches("^(ia64w?|itanium64)$")) {
             name += File.separator + "itanium-64";
-        } else if ("ia64n".equals(osArch)) {
+        } else if ("ia64n".equals(OS_ARCH)) {
             name += File.separator + "itanium-32";
-        } else if (osArch.matches("^(sparc|sparc32)$")) {
+        } else if (OS_ARCH.matches("^(sparc|sparc32)$")) {
             name += File.separator + "sparc-32";
-        } else if (osArch.matches("^(sparcv9|sparc64)$")) {
+        } else if (OS_ARCH.matches("^(sparcv9|sparc64)$")) {
             name += File.separator + "sparc-64";
-        } else if (osArch.matches("^(arm|arm32)$")) {
+        } else if (OS_ARCH.matches("^(arm|arm32)$")) {
             name += File.separator + "arm-32";
-        } else if ("aarch64".equals(osArch)) {
+        } else if ("aarch64".equals(OS_ARCH)) {
             name += File.separator + "aarch-64";
-        } else if (osArch.matches("^(mips|mips32)$")) {
+        } else if (OS_ARCH.matches("^(mips|mips32)$")) {
             name += File.separator + "mips-32";
-        } else if (osArch.matches("^(mipsel|mips32el)$")) {
+        } else if (OS_ARCH.matches("^(mipsel|mips32el)$")) {
             name += File.separator + "mipsel-32";
-        } else if ("mips64".equals(osArch)) {
+        } else if ("mips64".equals(OS_ARCH)) {
             name += File.separator + "mips-64";
-        } else if ("mips64el".equals(osArch)) {
+        } else if ("mips64el".equals(OS_ARCH)) {
             name += File.separator + "mipsel-64";
-        } else if (osArch.matches("^(ppc|ppc32)$")) {
+        } else if (OS_ARCH.matches("^(ppc|ppc32)$")) {
             name += File.separator + "ppc-32";
-        } else if (osArch.matches("^(ppcle|ppc32le)$")) {
+        } else if (OS_ARCH.matches("^(ppcle|ppc32le)$")) {
             name += File.separator + "ppcle-32";
-        } else if ("ppc64".equals(osArch)) {
+        } else if ("ppc64".equals(OS_ARCH)) {
             name += File.separator + "ppc-64";
-        } else if ("ppc64le".equals(osArch)) {
+        } else if ("ppc64le".equals(OS_ARCH)) {
             name += File.separator + "ppcle-64";
-        } else if ("s390".equals(osArch)) {
+        } else if ("s390".equals(OS_ARCH)) {
             name += File.separator + "s390-32";
-        } else if ("s390x".equals(osArch)) {
+        } else if ("s390x".equals(OS_ARCH)) {
             name += File.separator + "s390-64";
-        } else if (osArch.matches("^(riscv|riscv32)$")) {
+        } else if (OS_ARCH.matches("^(riscv|riscv32)$")) {
             name += File.separator + "riscv";
-        } else if ("riscv64".equals(osArch)) {
+        } else if ("riscv64".equals(OS_ARCH)) {
             name += File.separator + "riscv64";
-        } else if ("e2k".equals(osArch)) {
+        } else if ("e2k".equals(OS_ARCH)) {
             name += File.separator + "e2k";
-        } else if ("loongarch64".equals(osArch)) {
+        } else if ("loongarch64".equals(OS_ARCH)) {
             name += File.separator + "loongarch-64";
         }
 
-        name += File.separator + prefix + libraryName + extension;
+        name += File.separator + prefix + strippedLibraryName + extension;
         if (new File(name).isFile()) {
             LOGGER.info("Load native library from " + name);
         } else {
             LOGGER.info("Extract and Load native library from " + name);
-            URL resource = clazz.getResource(resourcePath + "/" + libraryName);
-            if (resource!=null) {
+            URL resource = clazz.getResource(resourcePath + "/" + strippedLibraryName);
+            if (resource != null) {
                 try {
                     extractFilesFromURI(resource.toURI(), targetFolder);
                 } catch (IOException | URISyntaxException ex) {
-                    throw new RuntimeException("Failed to extract " + resource + " from " + clazz.getCanonicalName() + " to " + targetFolder, ex);
+                    throw new RuntimeException("Failed to extract " + resource + " from "
+                            + clazz.getCanonicalName() + " to " + targetFolder, ex);
                 }
             } else {
-                throw new RuntimeException("Resource " + resourcePath + "/" + libraryName + " does not exist in " + clazz.getCanonicalName());
+                throw new RuntimeException("Resource " + resourcePath + "/" + strippedLibraryName
+                        + " does not exist in " + clazz.getCanonicalName());
             }
         }
 

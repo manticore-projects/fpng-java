@@ -17,7 +17,7 @@ dependencies {
     testImplementation "com.manticore-projects.tools:fpng-java:$version"
     testImplementation "com.manticore-projects.tools:fpnge-java:$version"
 
-    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testImplementation platform('org.junit:junit-bom:+')
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testImplementation 'commons-io:commons-io:+'
 }

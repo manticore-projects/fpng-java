@@ -14,7 +14,8 @@ public class ObjectPlanetPNGEncoderBenchmark extends EncoderBenchmark {
     @Benchmark
     public void encode() throws IOException {
         ByteArrayOutputStream os = new ByteArrayOutputStream();
-        PngEncoder encoder = new PngEncoder( channels == 4 ?  COLOR_TRUECOLOR_ALPHA : COLOR_TRUECOLOR, DEFAULT_COMPRESSION);
+        PngEncoder encoder = new PngEncoder(channels == 4 ? COLOR_TRUECOLOR_ALPHA : COLOR_TRUECOLOR,
+                DEFAULT_COMPRESSION);
         encoder.encode(image, os);
         byte[] result = os.toByteArray();
         os.close();

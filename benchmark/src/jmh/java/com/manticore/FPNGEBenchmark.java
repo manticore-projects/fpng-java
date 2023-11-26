@@ -4,8 +4,8 @@ import com.manticore.tools.FPNGE;
 import org.openjdk.jmh.annotations.Benchmark;
 
 public class FPNGEBenchmark extends EncoderBenchmark {
-//    @Param({"1", "2", "3", "4", "5"})
-//    int compressionLevel;
+    // @Param({"1", "2", "3", "4", "5"})
+    // int compressionLevel;
 
     @Benchmark
     public void encode() {

@@ -37,6 +37,23 @@ javadoc {
     options.addBooleanOption("package", true)
 }
 
+spotless {
+    java {
+        indentWithSpaces(4)
+        eclipse().configFile(  rootProject.file('config/formatter/eclipse-java-google-style.xml') )
+    }
+}
+
+spotbugsMain {
+    reports {
+        html {
+            enabled = true
+            destination = rootProject.file("build/reports/spotbugs/main/spotbugs.html")
+            stylesheet = 'fancy-hist.xsl'
+        }
+    }
+}
+
 publishing {
     publications {
         mavenJava(MavenPublication) {

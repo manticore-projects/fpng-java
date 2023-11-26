@@ -45,12 +45,64 @@ java {
 
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
-    // needed for XML-Doclet to work (since Doclet changed again with Java 13)
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(11))
+}
+
+spotless {
+    java {
+        indentWithSpaces(4)
+        eclipse().configFile(  rootProject.file('config/formatter/eclipse-java-google-style.xml') )
     }
 }
 
+spotbugsMain {
+    reports {
+        html {
+            enabled = true
+            destination = rootProject.file("build/reports/spotbugs/main/spotbugs.html")
+            stylesheet = 'fancy-hist.xsl'
+        }
+    }
+}
+
+checkstyle {
+    sourceSets = [sourceSets.main, sourceSets.test]
+    configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+}
+
+tasks.withType(Checkstyle).configureEach {
+    reports {
+        xml.required = false
+        html.required = true
+    }
+}
+
+
+jacocoTestReport {
+    dependsOn test // tests are required to run before generating the report
+    reports {
+        xml.required = false
+        csv.required = false
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco')
+    }
+}
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            //element = 'CLASS'
+            limit {
+                minimum = 1.00
+            }
+        }
+        rule {
+            //element = 'CLASS'
+            limit {
+                counter = 'LINE'
+                value = 'MISSEDCOUNT'
+                maximum = 0
+            }
+        }
+    }
+}
 
 javadoc {
     if (JavaVersion.current().isJava9Compatible()) {
@@ -115,8 +167,8 @@ publishing {
                 url = 'https://manticore-projects.com/JavaFPNG'
                 licenses {
                     license {
-                        name = 'The GNU GENERAL PUBLIC LICENSE, Version 3.0'
-                        url = 'https://www.gnu.org/licenses/gpl-3.0.en.html'
+                        name = 'The GNU Affero General Public License, Version 3.0'
+                        url = 'https://www.gnu.org/licenses/agpl-3.0.html#license-text'
                     }
                 }
                 developers {

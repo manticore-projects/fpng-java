@@ -10,12 +10,10 @@ class FPNGETest {
 
     @ParameterizedTest
     @CsvSource({
-            "example, 3"
-            , "example, 4"
-            , "looklet-look-scale6, 3"
-            , "looklet-look-scale6, 4"
+            "example, 3", "example, 4", "looklet-look-scale6, 3", "looklet-look-scale6, 4"
     })
-    void encodeTest(String fileName, int channels) throws IOException, InvocationTargetException, NoSuchMethodException, IllegalAccessException {
+    void encodeTest(String fileName, int channels) throws IOException, InvocationTargetException,
+            NoSuchMethodException, IllegalAccessException {
         Encoder.encoderTest(FPNGE.class, fileName, channels);
     }
 }

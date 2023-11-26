@@ -13,13 +13,14 @@ import java.io.File;
 import java.io.FileWriter;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.charset.Charset;
 import java.text.DateFormat;
 import java.util.Date;
 
 @State(Scope.Benchmark)
 public abstract class EncoderBenchmark {
 
-    @Param({"example.png", "looklet-look-scale6.png"})  // Add more PNG file names as needed
+    @Param({"example.png", "looklet-look-scale6.png"}) // Add more PNG file names as needed
     String imageName;
 
     @Param({"3", "4"})
@@ -30,8 +31,7 @@ public abstract class EncoderBenchmark {
 
     long size;
 
-    public static void main(String[] args) throws Exception {
-    }
+    public static void main(String[] args) throws Exception {}
 
     @Setup
     public void setup(Blackhole blackhole) throws IOException {
@@ -42,8 +42,9 @@ public abstract class EncoderBenchmark {
     @TearDown
     public void tearDown() throws IOException {
         DateFormat dtf = DateFormat.getDateTimeInstance(DateFormat.SHORT, DateFormat.SHORT);
-        String fileName = System.getProperty("java.io.tmpdir") + File.separator + "EncoderBenchmark.csv";
-        try (FileWriter writer = new FileWriter(fileName, true);) {
+        String fileName =
+                System.getProperty("java.io.tmpdir") + File.separator + "EncoderBenchmark.csv";
+        try (FileWriter writer = new FileWriter(fileName, Charset.defaultCharset(), true);) {
             writer.append(dtf.format(new Date())).append(";")
                     .append(this.getClass().getSimpleName()).append(";")
                     .append(imageName).append(";")
@@ -56,17 +57,14 @@ public abstract class EncoderBenchmark {
 
     private BufferedImage loadImage(String imageName) {
         try (InputStream stream = getClass().getClassLoader().getResourceAsStream(imageName)) {
-            assert stream!=null;
+            assert stream != null;
             BufferedImage image = ImageIO.read(stream);
 
             // Re-Encode according to the channels
             BufferedImage convertedImage = new BufferedImage(
-                    image.getWidth()
-                    , image.getHeight()
-                    , channels==4
-                        ? BufferedImage.TYPE_INT_ARGB
-                        : BufferedImage.TYPE_INT_RGB
-            );
+                    image.getWidth(), image.getHeight(), channels == 4
+                            ? BufferedImage.TYPE_INT_ARGB
+                            : BufferedImage.TYPE_INT_RGB);
 
             // Draw the original image onto the new image
             convertedImage.getGraphics().drawImage(image, 0, 0, null);

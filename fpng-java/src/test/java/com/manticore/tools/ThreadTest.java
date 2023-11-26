@@ -20,22 +20,25 @@ public class ThreadTest {
         BufferedImage image = Encoder.readImageFromClasspath(FPNGEncoder.class, "example");
 
         ExecutorService executorService = Executors.newFixedThreadPool(8);
-            for (int i = 0; i < 100000; i++) {
-                final int j = i;
-                executorService.submit(new Runnable() {
-                    @Override
-                    public void run() {
-                        FPNGEncoder.encode(image, 3, 1);
-                        if (j % 1000 == 0) {
-                            MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
-                            MemoryUsage heapMemoryUsage = memoryMXBean.getHeapMemoryUsage();
-                            MemoryUsage nonHeapMemoryUsage = memoryMXBean.getNonHeapMemoryUsage();
-                            System.out.println( j + " images: Heap: " + heapMemoryUsage.getUsed() / (1024 * 1024) + " | " +  heapMemoryUsage.getMax() / (1024 * 1024) + " Non-Heap: " + nonHeapMemoryUsage.getUsed() / (1024 * 1024) );
-                        }
+        for (int i = 0; i < 100000; i++) {
+            final int j = i;
+            executorService.submit(new Runnable() {
+                @Override
+                public void run() {
+                    FPNGEncoder.encode(image, 3, 1);
+                    if (j % 1000 == 0) {
+                        MemoryMXBean memoryMXBean = ManagementFactory.getMemoryMXBean();
+                        MemoryUsage heapMemoryUsage = memoryMXBean.getHeapMemoryUsage();
+                        MemoryUsage nonHeapMemoryUsage = memoryMXBean.getNonHeapMemoryUsage();
+                        System.out.println(j + " images: Heap: "
+                                + heapMemoryUsage.getUsed() / (1024 * 1024) + " | "
+                                + heapMemoryUsage.getMax() / (1024 * 1024) + " Non-Heap: "
+                                + nonHeapMemoryUsage.getUsed() / (1024 * 1024));
                     }
-                });
-            }
-            executorService.shutdown();
-            executorService.awaitTermination(1, TimeUnit.DAYS);
+                }
+            });
+        }
+        executorService.shutdown();
+        executorService.awaitTermination(1, TimeUnit.DAYS);
     }
 }
