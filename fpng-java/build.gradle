@@ -90,7 +90,6 @@ jacocoTestCoverageVerification {
         rule {
             //element = 'CLASS'
             limit {
-                //@todo: temporarily reduced it 80%, we need to bring that back to 84% accepting the Keywords PR
                 minimum = 1.00
             }
         }
