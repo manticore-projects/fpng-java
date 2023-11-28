@@ -33,7 +33,7 @@ cd fpng-java
 gradle clean assemble
 ```
 
-The artifacts will be written to: `.fpng-java/build/libs/fpng-java-1.1.0-SNAPSHOT.jar` and `.fpnge-java/build/libs/fpnge-java-1.1.0-SNAPSHOT.jar`
+The artifacts will be written to: `.fpng-java/build/libs/fpng-java-1.2.0-SNAPSHOT.jar` and `.fpnge-java/build/libs/fpnge-java-1.2.0-SNAPSHOT.jar`
 
 # Benchmarks
 
@@ -99,13 +99,13 @@ The **compression rates** were set to `MEDIUM` for achieving comparable file-siz
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpng-java</artifactId>
-        <version>1.1.0</version>
+        <version>1.2.0</version>
     </dependency>
     <!-- Only needed when using the FPNGe AVX2 Encoder -->
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpnge-java</artifactId>
-        <version>1.1.0</version>
+        <version>1.2.0</version>
     </dependency>
 </dependencies>
 ```
@@ -133,14 +133,7 @@ dependencies {
 
 # To Do
 
-- [X] Right now we compare only the speed without paying attention to the size of the encoded image. We will need to
-  calibrate the benchmarks to compare only modes producing similar sizes. Also, 24bit vs 32bit modes need to be honored.
-- [X] Benchmark the translation of the `BufferedImage` into the `RGBA` byte array, which is right now Pixel based and
-  likely slow.
-- [ ] Further we should add more test images for the "screen capturing" use case, which may yield different outcomes.
+- [ ] Add more test images for the "screen capturing" use case, which may yield different outcomes.
   Right now only photo-realistic images are tested.
-- [X] Publish Artifact to Maven/Sonatype.
-- [X] Fat/Ueber JAR with support for the 4 major Operating Systems.
 - [ ] Drop slow JNA and replace with a JNI implementation.
-- [X] Investigate the difference in performance on Graal JDK vs OpenJDK or JetBrains JDK.
 - [ ] Try profiling with PGO.
