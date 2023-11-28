@@ -64,6 +64,8 @@ interface Encoder extends Library {
             .toLowerCase(Locale.US)
             .replaceAll("[^a-z0-9]+", "");
 
+    String TMP_FOLDER = System.getProperty("java.io.tmpdir");
+
     // if we can't use the SSE or AVX byte shuffling, we could fall back to Java based byte swapping
     static void swapIntBytes(byte[] bytes) {
         assert bytes.length % 4 == 0;
@@ -79,20 +81,6 @@ interface Encoder extends Library {
         }
     }
 
-    static BufferedImage readImageFromClasspath(Class<? extends Encoder> encoderClass,
-            String fileName) throws IOException {
-        String resourceStr = "/" + fileName + ".png";
-
-        // Load the PNG file into a BufferedImage
-        try (InputStream inputStream = encoderClass.getResourceAsStream(resourceStr)) {
-            if (inputStream != null) {
-                return ImageIO.read(inputStream);
-            } else {
-                throw new IOException("Resource '" + resourceStr + "' not found in "
-                        + encoderClass.getCanonicalName());
-            }
-        }
-    }
 
     static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels)
             throws IOException, NoSuchMethodException, InvocationTargetException,
@@ -146,6 +134,7 @@ interface Encoder extends Library {
                     @Override
                     public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
                             throws IOException {
+
                         Files.copy(file,
                                 targetFolder.toPath().resolve(uriPath.relativize(file).toString()),
                                 StandardCopyOption.REPLACE_EXISTING);
@@ -168,6 +157,38 @@ interface Encoder extends Library {
                 });
     }
 
+    static BufferedImage readImageFromClasspath(Class<? extends Encoder> encoderClass,
+            String fileName) throws IOException {
+
+        // We should be able to read the Image from a Class InputStream directly.
+        // This has been working well on Windows and Linux.
+        // Although it continuously failed on MacOS looking like a specific JDK/OS problem.
+        // Now we copy into a file first trying to mitigate this issue.
+
+        String resourceStr = "/" + fileName + ".png";
+        File destinationFile = new File(TMP_FOLDER, fileName + ".png");
+        destinationFile.deleteOnExit();
+
+        try (InputStream is =  encoderClass.getResourceAsStream("/" + fileName + ".png"); ) {
+            if (is!=null) {
+                    Files.copy(is, destinationFile.toPath(),
+                            StandardCopyOption.REPLACE_EXISTING);
+            } else {
+                throw new IOException("Could not read image " + fileName + " from Class "
+                        + encoderClass.getCanonicalName());
+            }
+
+            // Load the PNG file into a BufferedImage
+            File file = new File(TMP_FOLDER, fileName + ".png");
+            if (file.isFile() && file.canRead()) {
+                file.deleteOnExit();
+                return ImageIO.read(file);
+            } else {
+                throw new IOException("Could not read image " + fileName + " from TEMP after extract.");
+            }
+        }
+    }
+
     static byte[] getRGBABytes(BufferedImage image, int channels) {
         BufferedImage convertedImage = new BufferedImage(image.getWidth(), image.getHeight(),
                 channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR : BufferedImage.TYPE_3BYTE_BGR);
@@ -182,7 +203,7 @@ interface Encoder extends Library {
         String resourcePath = "/lib";
         String prefix = "lib";
         String extension = ".so";
-        String targetFolder = System.getProperty("java.io.tmpdir") + File.separator + libraryName
+        String targetFolder = TMP_FOLDER + File.separator + libraryName
                 + File.separator;
 
         // clip the prefix
