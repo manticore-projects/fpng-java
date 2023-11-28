@@ -48,7 +48,7 @@ tasks.withType(LinkSharedLibrary).configureEach {
 
 tasks.register('copyNativeLib', Copy) {
     dependsOn assemble
-    from './build/lib/main/debug/shared'
+    //from './build/lib/main/debug/shared'
     from './build/lib/main/release/shared'
     into '../fpng-java/build/resources/main/lib/fpng'
 

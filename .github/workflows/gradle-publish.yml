@@ -64,18 +64,18 @@ jobs:
         with:
           name: fpng
           path: |
-            fpng/build/lib/main/debug/shared/**/*.dylib
-            fpng/build/lib/main/debug/shared/**/*.dll
-            fpng/build/lib/main/debug/shared/**/*.so
+            fpng/build/lib/main/release/shared/**/stripped/*.dylib
+            fpng/build/lib/main/release/shared/**/stripped/*.dll
+            fpng/build/lib/main/release/shared/**/stripped/*.so
 
       - name: Upload FPNGE artifacts
         uses: actions/upload-artifact@v3
         with:
           name: fpnge
           path: |
-            fpnge/build/lib/main/debug/shared/**/*.dylib
-            fpnge/build/lib/main/debug/shared/**/*.dll
-            fpnge/build/lib/main/debug/shared/**/*.so
+            fpnge/build/lib/main/release/shared/**/stripped/*.dylib
+            fpnge/build/lib/main/release/shared/**/stripped/*.dll
+            fpnge/build/lib/main/release/shared/**/stripped/*.so
 
       - name: Publish to GitHub Packages
         if: matrix.os == 'ubuntu-latest'

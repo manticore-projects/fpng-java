@@ -169,10 +169,10 @@ interface Encoder extends Library {
         File destinationFile = new File(TMP_FOLDER, fileName + ".png");
         destinationFile.deleteOnExit();
 
-        try (InputStream is =  encoderClass.getResourceAsStream("/" + fileName + ".png"); ) {
-            if (is!=null) {
-                    Files.copy(is, destinationFile.toPath(),
-                            StandardCopyOption.REPLACE_EXISTING);
+        try (InputStream is = encoderClass.getResourceAsStream("/" + fileName + ".png");) {
+            if (is != null) {
+                Files.copy(is, destinationFile.toPath(),
+                        StandardCopyOption.REPLACE_EXISTING);
             } else {
                 throw new IOException("Could not read image " + fileName + " from Class "
                         + encoderClass.getCanonicalName());
@@ -184,7 +184,8 @@ interface Encoder extends Library {
                 file.deleteOnExit();
                 return ImageIO.read(file);
             } else {
-                throw new IOException("Could not read image " + fileName + " from TEMP after extract.");
+                throw new IOException(
+                        "Could not read image " + fileName + " from TEMP after extract.");
             }
         }
     }
@@ -306,7 +307,8 @@ interface Encoder extends Library {
             name += File.separator + "loongarch-64";
         }
 
-        name += File.separator + prefix + strippedLibraryName + extension;
+        name += File.separator + "stripped" + File.separator + prefix + strippedLibraryName
+                + extension;
         if (new File(name).isFile()) {
             LOGGER.info("Load native library from " + name);
         } else {
