@@ -118,7 +118,7 @@ interface Encoder extends Library {
         }
     }
 
-    // copy a folder with all its content from inside the JAR to a filesystem destinantion (e.g.
+    // copy a folder with all its content from inside the JAR to a filesystem destination (e.g.
     // '/tmp/)
     static void extractFilesFromURI(URI uri, String target) throws IOException {
         LOGGER.info("Extract native libraries from: " + uri.toASCIIString());
