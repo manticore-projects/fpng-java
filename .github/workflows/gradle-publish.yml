@@ -23,7 +23,7 @@ jobs:
       - name: Build with Gradle
         uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
         with:
-          arguments: :fpng-java:build  :fpnge-java:build -x :maven-test:test
+          arguments: check -x :maven-test:test
 
   build:
     needs: ci
@@ -54,7 +54,6 @@ jobs:
           arguments: :fpng:assemble
 
       - name: Build FPNGE Native Libs
-        #if: matrix.os != 'windows-latest'
         uses: gradle/gradle-build-action@bd5760595778326ba7f1441bcf7e88b49de61a25 # v2.6.0
         with:
           arguments: :fpnge:assemble
@@ -65,7 +64,7 @@ jobs:
           name: fpng
           path: |
             fpng/build/lib/main/release/shared/**/stripped/*.dylib
-            fpng/build/lib/main/release/shared/**/stripped/*.dll
+            fpng/build/lib/main/release/shared/**/*.dll
             fpng/build/lib/main/release/shared/**/stripped/*.so
 
       - name: Upload FPNGE artifacts
@@ -74,7 +73,7 @@ jobs:
           name: fpnge
           path: |
             fpnge/build/lib/main/release/shared/**/stripped/*.dylib
-            fpnge/build/lib/main/release/shared/**/stripped/*.dll
+            fpnge/build/lib/main/release/shared/**/*.dll
             fpnge/build/lib/main/release/shared/**/stripped/*.so
 
       - name: Publish to GitHub Packages

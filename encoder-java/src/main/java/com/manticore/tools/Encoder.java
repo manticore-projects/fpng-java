@@ -165,27 +165,29 @@ interface Encoder extends Library {
         // Although it continuously failed on MacOS looking like a specific JDK/OS problem.
         // Now we copy into a file first trying to mitigate this issue.
 
-        String resourceStr = "/" + fileName + ".png";
-        File destinationFile = new File(TMP_FOLDER, fileName + ".png");
+        String fileNameWithExtension = fileName + ".png";
+        String resourceStr = "/" + fileNameWithExtension;
+        File destinationFile = new File(TMP_FOLDER, fileNameWithExtension);
         destinationFile.deleteOnExit();
 
-        try (InputStream is = encoderClass.getResourceAsStream("/" + fileName + ".png");) {
+        try (InputStream is = encoderClass.getResourceAsStream(resourceStr);) {
             if (is != null) {
                 Files.copy(is, destinationFile.toPath(),
                         StandardCopyOption.REPLACE_EXISTING);
             } else {
-                throw new IOException("Could not read image " + fileName + " from Class "
+                throw new IOException("Could not read image " + resourceStr + " from Class "
                         + encoderClass.getCanonicalName());
             }
 
             // Load the PNG file into a BufferedImage
-            File file = new File(TMP_FOLDER, fileName + ".png");
+            File file = new File(TMP_FOLDER, fileNameWithExtension);
             if (file.isFile() && file.canRead()) {
                 file.deleteOnExit();
                 return ImageIO.read(file);
             } else {
                 throw new IOException(
-                        "Could not read image " + fileName + " from TEMP after extract.");
+                        "Could not read image " + fileNameWithExtension
+                                + " from TEMP after extract.");
             }
         }
     }
@@ -204,6 +206,7 @@ interface Encoder extends Library {
         String resourcePath = "/lib";
         String prefix = "lib";
         String extension = ".so";
+        boolean strippedSymbols = true;
         String targetFolder = TMP_FOLDER + File.separator + libraryName
                 + File.separator;
 
@@ -229,6 +232,7 @@ interface Encoder extends Library {
             name += "windows";
             prefix = "";
             extension = ".dll";
+            strippedSymbols = false;
         } else if (OS_NAME.startsWith("mac") || OS_NAME.startsWith("osx")) {
             name += "macos";
             extension = ".dylib";
@@ -307,7 +311,9 @@ interface Encoder extends Library {
             name += File.separator + "loongarch-64";
         }
 
-        name += File.separator + "stripped" + File.separator + prefix + strippedLibraryName
+        name += File.separator + (strippedSymbols ? "stripped" + File.separator : "")
+                + prefix
+                + strippedLibraryName
                 + extension;
         if (new File(name).isFile()) {
             LOGGER.info("Load native library from " + name);
