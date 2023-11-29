@@ -329,7 +329,8 @@ interface Encoder extends Library {
                 }
             } else {
                 throw new RuntimeException("Resource " + resourcePath + "/" + strippedLibraryName
-                        + " does not exist in " + clazz.getCanonicalName() + "\nLikely unsupported Architecture: " + OS_NAME + " " + OS_ARCH);
+                        + " does not exist in " + clazz.getCanonicalName()
+                        + "\nLikely unsupported Architecture: " + OS_NAME + " " + OS_ARCH);
             }
         }
 
