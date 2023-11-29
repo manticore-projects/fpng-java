@@ -14,13 +14,22 @@ An additional SSE translation from Java's ABGR into the expected RGBA arrays is 
 
 [Maven](#maven-artifacts) and [Gradle](#gradle-artifacts) artifacts are available, please see [below](#maven-artifacts).
 
+```java
+import com.manticore.tools.FPNGEncoder;     // when using the SSE version
+import com.manticore.tools.FPNGE;           // when using the AVX version
+
+FPNGEncoder.encode(bufferedImage, 3, 0);    // encoding with 3 channels and fastest compression
+
+FPNGE.encode(bufferedImage, 3, 5);          // encoding with 3 channels and best compression
+```
+
 There are 7 projects included:
 
 - `encoder` is an abstract base class for loading the native libraries, byte arrays and tests
 - `fpng` is the C++ source from [FPNG](https://github.com/richgel999/fpng) with an additional C wrapper
-- `fpng-java` is the Java Wrapper, depending on `fpng` and `JNA`
+- `fpng-java` provides the Java `FPNGE` encoder, depending on `fpng` and `JNA`
 - `fpnge` is the AVX optimized C++ source from [FPNGe](https://github.com/veluca93/fpnge) with an additional C wrapper
-- `fpnge-java` is the Java Wrapper, depending on `fpnge` and `JNA`
+- `fpnge-java` provides the Java `FPNGEncoder`, depending on `fpnge` and `JNA`
 - `benchmark` are optional JMH based performance tests
 - `maven-test` as a most simple Java project stub for testing the Maven dependencies and the Native Libs on various OS
   after publishing.
@@ -34,6 +43,7 @@ gradle clean assemble
 ```
 
 The artifacts will be written to: `.fpng-java/build/libs/fpng-java-1.2.0-SNAPSHOT.jar` and `.fpnge-java/build/libs/fpnge-java-1.2.0-SNAPSHOT.jar`
+
 
 # Benchmarks
 
