@@ -2,7 +2,7 @@
 
 Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng) and the AVX optimized
 native [FPNGe Encoder](https://github.com/veluca93/fpnge). Contains  **64 bit binaries for Windows, Linux and
-MacOS**, built and tested on GitHub Runners.
+MacOS**, built and tested on GitHub Runners. Unfortunately, **MacOS ARM64 on Apple Silicon is not supported** yet.
 
 An additional SSE translation from Java's ABGR into the expected RGBA arrays is provided. (The AVX version has been tested to be slower).
 

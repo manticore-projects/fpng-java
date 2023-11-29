@@ -14,7 +14,9 @@ library {
     targetMachines = [
             machines.linux.x86_64,
             machines.windows.x86, machines.windows.x86_64,
-            machines.macOS.x86_64, machines.macOS.architecture("aarch64")
+            machines.macOS.x86_64
+            // depends on NEON for SSE/AVX intrinsics and needs changes in the C++ sources
+            // , machines.macOS.architecture("aarch64")
     ]
 }
 
@@ -31,7 +33,7 @@ tasks.withType(CppCompile).configureEach {
         if (toolChain in VisualCpp) {
             return ['/LD', '/EHsc', '/Ox', '/std:c++17', '/std:c++17', '/W4', '/arch:AVX2']
         } else {
-            return ['-fPIC', '-O3', '-mtune=generic', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-mavx2', '-fno-strict-aliasing']
+            return ['-fPIC', '-O3',  '-march=x86-64', '-mtune=generic', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-mavx2', '-fno-strict-aliasing']
         }
     }
 }
