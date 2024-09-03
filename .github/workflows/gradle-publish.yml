@@ -84,14 +84,14 @@ jobs:
 
       - name: Download FPNG artifacts
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: fpng
           path: fpng-java/build/resources/main/lib/fpng
 
       - name: Download FPNGE artifacts
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4.1.7
         with:
           name: fpnge
           path: fpnge-java/build/resources/main/lib/fpnge
