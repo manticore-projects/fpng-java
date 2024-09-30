@@ -40,7 +40,8 @@ class FPNGEncoderTest {
     @CsvSource({
             "failure16044445656400295224, 4"
     })
-    void encodeTestFailure(String fileName, int channels) throws IOException, InvocationTargetException,
+    void encodeTestFailure(String fileName, int channels)
+            throws IOException, InvocationTargetException,
             NoSuchMethodException, IllegalAccessException {
         Encoder.encoderTest(FPNGEncoder.class, fileName, channels);
     }
