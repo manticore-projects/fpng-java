@@ -4,6 +4,17 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define ARCH_SSE 1
+#define ARCH_NEON 2
+
+// Define the target architecture
+#if defined(__SSE__)
+    #define TARGET_ARCH ARCH_SSE
+#elif defined(__ARM_NEON__)
+    #define TARGET_ARCH ARCH_NEON
+#else
+    #error "Unsupported architecture"
+#endif
 
 void swapChannelsABGRtoRGBA_inplace(unsigned char* pImage, int numPixels) {
     const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);

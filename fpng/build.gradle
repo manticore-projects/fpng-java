@@ -33,7 +33,7 @@ tasks.withType(CppCompile).configureEach {
         if (toolChain in VisualCpp) {
             return ['/LD', '/EHsc', '/Ox', '/std:c++17', '/std:c++17', '/W4', '/arch:AVX2']
         } else {
-            return ['-fPIC', '-O3',  '-march=x86-64', '-mtune=generic', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-mavx2', '-fno-strict-aliasing']
+            return ['-fPIC', '-O3',  '-march=x86-64', '-mtune=generic', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-mavx2', '-fno-strict-aliasing' /*, '-fsanitize=address'*/]
         }
     }
 }
@@ -41,7 +41,7 @@ tasks.withType(CppCompile).configureEach {
 tasks.withType(LinkSharedLibrary).configureEach {
     linkerArgs.addAll toolChain.map { toolChain ->
         if (toolChain in Gcc) {
-            return ['-lgcov', '--coverage']
+            return ['-lgcov', '--coverage' /*, '-lasan'*/]
         } else {
             return []
         }

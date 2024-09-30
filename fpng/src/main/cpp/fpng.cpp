@@ -3204,13 +3204,26 @@ extern "C" {
     } ByteArray;
 
     EXPORT void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
-        const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
+        const __m128i shuffleMask = _mm_set_epi8(12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
+        int i;
+            for (i = 0; i + 3 < numPixels; i += 4) {
+                __m128i abgr = _mm_loadu_si128((__m128i*)(pImage + i * 4));
+                __m128i rgba = _mm_shuffle_epi8(abgr, shuffleMask);
+                _mm_storeu_si128((__m128i*)(pImage + i * 4), rgba);
+            }
 
-        for (int i = 0; i < numPixels; i += 4) {
-            __m128i abgr = _mm_loadu_si128((__m128i*)(pImage + i * 4));
-            __m128i rgba = _mm_shuffle_epi8(abgr, shuffleMask);
-            _mm_storeu_si128((__m128i*)(pImage + i * 4), rgba);
-        }
+            // Handle remaining pixels
+            for (; i < numPixels; ++i) {
+                const unsigned char a = pImage[i * 4];
+                const unsigned char b = pImage[i * 4 + 1];
+                const unsigned char g = pImage[i * 4 + 2];
+                const unsigned char r = pImage[i * 4 + 3];
+
+                pImage[i * 4] = r;
+                pImage[i * 4 + 1] = g;
+                pImage[i * 4 + 2] = b;
+                pImage[i * 4 + 3] = a;
+            }
     }
 
     EXPORT void swapChannelsBGRtoRGB(unsigned char* pImage, int numPixels) {
