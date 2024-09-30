@@ -13,9 +13,9 @@ repositories {
     }
 }
 dependencies {
-    testImplementation "com.manticore-projects.tools:encoder-java:$version"
-    testImplementation "com.manticore-projects.tools:fpng-java:$version"
-    testImplementation "com.manticore-projects.tools:fpnge-java:$version"
+    testImplementation "com.manticore-projects.tools:encoder-java:+"
+    testImplementation "com.manticore-projects.tools:fpng-java:+"
+    testImplementation "com.manticore-projects.tools:fpnge-java:+"
 
     testImplementation platform('org.junit:junit-bom:+')
     testImplementation 'org.junit.jupiter:junit-jupiter'
