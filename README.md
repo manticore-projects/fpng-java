@@ -2,7 +2,7 @@
 
 Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng) and the AVX optimized
 native [FPNGe Encoder](https://github.com/veluca93/fpnge). Contains  **64 bit binaries for Windows, Linux and
-MacOS**, built and tested on GitHub Runners. Unfortunately, **MacOS ARM64 on Apple Silicon is not supported** yet.
+macOS**, built and tested on GitHub Runners. Unfortunately, **macOS ARM64 on Apple Silicon is not supported** yet.
 
 An additional SSE translation from Java's ABGR into the expected RGBA arrays is provided. (The AVX version has been tested to be slower).
 
@@ -18,9 +18,9 @@ An additional SSE translation from Java's ABGR into the expected RGBA arrays is 
 import com.manticore.tools.FPNGEncoder;     // when using the SSE version
 import com.manticore.tools.FPNGE;           // when using the AVX version
 
-FPNGEncoder.encode(bufferedImage, 3, 0);    // encoding with 3 channels and fastest compression
+byte[] bytesSSE = FPNGEncoder.encode(bufferedImage, 3, 0);    // encoding with 3 channels and fastest compression
 
-FPNGE.encode(bufferedImage, 3, 5);          // encoding with 3 channels and best compression
+byte[] bytesAVX = FPNGE.encode(bufferedImage, 3, 5);          // encoding with 3 channels and best compression
 ```
 
 There are 7 projects included:
@@ -42,7 +42,7 @@ cd fpng-java
 gradle clean assemble
 ```
 
-The artifacts will be written to: `.fpng-java/build/libs/fpng-java-1.2.0-SNAPSHOT.jar` and `.fpnge-java/build/libs/fpnge-java-1.2.0-SNAPSHOT.jar`
+The artifacts will be written to: `.fpng-java/build/libs/fpng-java-1.3.1-SNAPSHOT.jar` and `.fpnge-java/build/libs/fpnge-java-1.3.1-SNAPSHOT.jar`
 
 
 # Benchmarks
@@ -86,16 +86,16 @@ PNGEncoderBenchmark.encodeFastest                4  looklet-look-scale6.png  avg
 
 ![Small Image Benchmark Results](src/site/sphinx/_static/benchmark_small.svg "Small Image Benchmark Results")
 ![Large Image Benchmark Results](src/site/sphinx/_static/benchmark_large.svg "Large Image Benchmark Results")
-**Remark:** Score in milli-seconds per encoding, smaller is better.
+**Remark:** Score in milliseconds per encoding, smaller is better.
 
 The **compression rates** were set to `MEDIUM` for achieving comparable file-sizes. The Java Encoders are able to achieve better compression rates at an even higher performance penalty.
-`FPNG SSE` an `FPNGe AVX` achieve very competitive file-sizes for smaller images but fall-off considerably for the very large image (1.5x the size of ImageIO). Please see details in the [Benchmark Spreadsheet](src/site/sphinx/_static/benchmark.ods).
+`FPNG SSE` and `FPNGe AVX` achieve very competitive file-sizes for smaller images but fall-off considerably for the very large image (1.5x the size of ImageIO). Please see details in the [Benchmark Spreadsheet](src/site/sphinx/_static/benchmark.ods).
 
 # Maven Artifacts
 
 ```xml
 <repositories>
-    <!-- Only needed when using the FPNG SSE2 Encoder -->
+    <!-- Only needed when using Snapshots -->
     <repository>
         <id>sonatype-snapshots</id>
         <snapshots>
@@ -109,13 +109,13 @@ The **compression rates** were set to `MEDIUM` for achieving comparable file-siz
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpng-java</artifactId>
-        <version>1.2.0</version>
+        <version>(1.3.0,]</version>
     </dependency>
     <!-- Only needed when using the FPNGe AVX2 Encoder -->
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpnge-java</artifactId>
-        <version>1.2.0</version>
+        <version>(1.3.0,]</version>
     </dependency>
 </dependencies>
 ```
