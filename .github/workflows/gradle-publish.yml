@@ -1,4 +1,4 @@
-name: Gradle Package
+name: FPNG-Java CI/CD
 
 on:
   push:
@@ -11,130 +11,70 @@ permissions:
 
 jobs:
 
+  # ── Lint & check (Java only, no native) ───────────────────────────
   ci:
+    name: Check
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Set up JDK 11
+
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
-      - name: Build with Gradle
-        uses: gradle/actions/setup-gradle@v3
+
+      - name: Gradle check
+        uses: gradle/actions/setup-gradle@v4
         with:
           arguments: check -x :maven-test:test
 
-  build:
+  # ── Build native libs on each platform ────────────────────────────
+  build-native:
+    name: Native (${{ matrix.os }})
     needs: ci
     strategy:
       matrix:
-        os: [ windows-latest, macos-latest, ubuntu-latest ]
-      max-parallel: 1
-    runs-on: ${{matrix.os}}
-
-    permissions:
-      contents: read
-      packages: write
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 11
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
-          server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
-          settings-path: ${{ github.workspace }} # location for the settings.xml file
 
-      - name: Build FPNG Native Libs
-        uses: gradle/actions/setup-gradle@v3
+      - name: Build FPNG and FPNGE native libs
+        uses: gradle/actions/setup-gradle@v4
         with:
-          arguments: :fpng:assemble
+          arguments: :fpng:assemble :fpnge:assemble
 
-      - name: Build FPNGE Native Libs
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          arguments: :fpnge:assemble
-
-      - name: Upload FPNG artifacts
+      - name: Upload FPNG native artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fpng
+          name: fpng-${{ matrix.os }}
           path: |
             fpng/build/lib/main/release/shared/**/stripped/*.dylib
             fpng/build/lib/main/release/shared/**/*.dll
             fpng/build/lib/main/release/shared/**/stripped/*.so
 
-      - name: Upload FPNGE artifacts
+      - name: Upload FPNGE native artifact
         uses: actions/upload-artifact@v4
         with:
-          name: fpnge
+          name: fpnge-${{ matrix.os }}
           path: |
             fpnge/build/lib/main/release/shared/**/stripped/*.dylib
             fpnge/build/lib/main/release/shared/**/*.dll
             fpnge/build/lib/main/release/shared/**/stripped/*.so
 
-      - name: Publish to GitHub Packages
-        if: matrix.os == 'ubuntu-latest'
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          arguments: :fpng-java:compileJava  :fpnge-java:compileJava
-
-      - name: Download FPNG artifacts
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/download-artifact@v4.1.7
-        with:
-          name: fpng
-          path: fpng-java/build/resources/main/lib/fpng
-
-      - name: Download FPNGE artifacts
-        if: matrix.os == 'ubuntu-latest'
-        uses: actions/download-artifact@v4.1.7
-        with:
-          name: fpnge
-          path: fpnge-java/build/resources/main/lib/fpnge
-
-      - id: install-gradle-properties
-        name: Install Gradle Properties from Secret
-        if: matrix.os == 'ubuntu-latest'
-        env:
-          GRADLE_PROPERTIES: ${{ secrets.GRADLE_PROPERTIES }}
-          shell: bash
-        run: |
-          find /home/runner/work/fpng-java/fpng-java/fpng-java/build/resources/main/lib/** -type f -printf "%T@ %p\n" | sort -nr | cut -d\  -f2
-          find /home/runner/work/fpng-java/fpng-java/fpnge-java/build/resources/main/lib/** -type f -printf "%T@ %p\n" | sort -nr | cut -d\  -f2
-          mkdir -p ~/.gradle/
-          echo "GRADLE_USER_HOME=${HOME}/.gradle" >> $GITHUB_ENV
-          echo "${GRADLE_PROPERTIES}" > ~/.gradle/gradle.properties        
-
-      - id: install-secret-key
-        name: Install GPG Key from Secret
-        if: matrix.os == 'ubuntu-latest'
-        run: |
-          cat <(echo -e "${{ secrets.OSSRH_GPG_SECRET_KEY }}") | gpg --batch --import
-          gpg --export-secret-keys -o /home/runner/.gnupg/secring.gpg
-
-      # The USERNAME and TOKEN need to correspond to the credentials environment variables used in
-      # the publishing section of your build.gradle
-      - name: Publish to GitHub Packages
-        if: matrix.os == 'ubuntu-latest'
-        uses: gradle/actions/setup-gradle@v3
-        with:
-          arguments: :encoder-java:publish :fpng-java:publish  :fpnge-java:publish
-        env:
-          USERNAME: ${{ github.actor }}
-          TOKEN: ${{ secrets.GITHUB_TOKEN }}
-
-  test:
-    needs: build
-    continue-on-error: true
-    strategy:
-      matrix:
-        os: [ windows-latest, macos-latest, ubuntu-latest ]
-    runs-on: ${{matrix.os}}
-
+  # ── Bundle native libs into JARs and publish ──────────────────────
+  publish:
+    name: Publish
+    needs: build-native
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -142,15 +82,80 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up JDK 11
+      - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
-          java-version: '11'
+          java-version: '17'
           distribution: 'temurin'
-          server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
-          settings-path: ${{ github.workspace }} # location for the settings.xml file
 
-      - name: Test FPNG Native Libs
-        uses: gradle/actions/setup-gradle@v3
+      - name: Compile Java modules
+        uses: gradle/actions/setup-gradle@v4
         with:
-          arguments: --no-build-cache --no-daemon --refresh-dependencies :maven-test:test
+          arguments: :fpng-java:compileJava :fpnge-java:compileJava
+
+      - name: Download all FPNG native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fpng-*
+          path: fpng-java/build/resources/main/lib/fpng
+          merge-multiple: true
+
+      - name: Download all FPNGE native artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: fpnge-*
+          path: fpnge-java/build/resources/main/lib/fpnge
+          merge-multiple: true
+
+      - name: Verify native libs
+        run: |
+          echo "── FPNG native libs ──"
+          find fpng-java/build/resources/main/lib -type f | sort
+          echo "── FPNGE native libs ──"
+          find fpnge-java/build/resources/main/lib -type f | sort
+
+      - name: Install Gradle properties
+        env:
+          GRADLE_PROPERTIES: ${{ secrets.GRADLE_PROPERTIES }}
+        shell: bash
+        run: |
+          mkdir -p ~/.gradle/
+          echo "GRADLE_USER_HOME=${HOME}/.gradle" >> $GITHUB_ENV
+          echo "${GRADLE_PROPERTIES}" > ~/.gradle/gradle.properties
+
+      - name: Install GPG signing key
+        run: |
+          echo -e "${{ secrets.GPG_SECRET_KEY }}" | gpg --batch --import
+          gpg --export-secret-keys -o ~/.gnupg/secring.gpg
+
+      - name: Publish to GitHub Packages and Maven Central
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          arguments: :encoder-java:publish :fpng-java:publish :fpnge-java:publish
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # ── Integration test against published artifacts ──────────────────
+  test:
+    name: Integration test (${{ matrix.os }})
+    needs: publish
+    continue-on-error: true
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, windows-latest, macos-latest ]
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Run maven-test suite
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          arguments: --no-build-cache --refresh-dependencies :maven-test:test
