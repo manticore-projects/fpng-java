@@ -27,7 +27,7 @@ jobs:
       - uses: gradle/actions/setup-gradle@v4
 
       - name: Gradle check
-        run: ./gradlew check -x :maven-test:test
+        run: ./gradlew check -x :maven-test:check
 
   # ── Build native libs on each platform ────────────────────────────
   build-native:
