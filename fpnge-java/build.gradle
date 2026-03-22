@@ -4,7 +4,6 @@ plugins {
     id 'signing'
 }
 
-group = 'com.manticore-projects.tools'
 description = 'Java Wrapper around the native AVX optimised FPNGE Encoder'
 
 repositories {
@@ -120,24 +119,21 @@ javadoc {
 tasks.register('xmldoc', Javadoc) {
     dependsOn(compileJava)
 
-    def outFile = reporting.file(
-            version.endsWith("-SNAPSHOT")
-                    ? "xmlDoclet/javadoc_snapshot.xml"
-                    : "xmlDoclet/javadoc_stable.xml"
-    )
+    def outFile = layout.buildDirectory.file("reports/xmlDoclet/javadoc_fpnge.xml").get().asFile
     source = sourceSets.main.allJava
     classpath = sourceSets.main.runtimeClasspath
-
     title = "FPNGe API $version"
-    destinationDir = reporting.file("xmlDoclet")
+    destinationDir = layout.buildDirectory.dir("reports/xmlDoclet").get().asFile
     options.docletpath = configurations.xmlDoclet.files as List
     options.doclet = "com.manticore.tools.xmldoclet.XmlDoclet"
     options.addStringOption("basePackage", "com.manticore.tools")
     options.addStringOption("filename", outFile.getName())
 
-    copy {
-        from outFile
-        into layout.projectDirectory.dir("src/site/sphinx/").asFile
+    doLast {
+        copy {
+            from outFile
+            into rootProject.layout.projectDirectory.dir("src/site/sphinx/_static").asFile
+        }
     }
 }
 

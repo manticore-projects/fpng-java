@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+<root>
+    <package name="com.manticore.tools">
+        <interface name="FPNGEncoder" qualified="com.manticore.tools.FPNGEncoder" scope="public">
+            <interface qualified="com.manticore.tools.Encoder"/>
+            <method name="encode" signature="byte[] (java.awt.image.BufferedImage,int,int)" qualified="encode" scope="public" abstract="false" final="false" native="false" synchronized="false" static="true" varArgs="false">
+                <parameter name="image">
+                    <type qualified="java.awt.image.BufferedImage"/>
+                </parameter>
+                <parameter name="numberOfChannels">
+                    <type qualified="int"/>
+                </parameter>
+                <parameter name="flags">
+                    <type qualified="int"/>
+                </parameter>
+                <return qualified="byte[]" dimension="1"/>
+            </method>
+            <method name="fpng_init" signature="void ()" qualified="fpng_init" scope="public" abstract="true" final="false" native="false" synchronized="false" static="false" varArgs="false">
+                <return qualified="void"/>
+                <annotation name="SuppressWarnings" qualified="java.lang.SuppressWarnings">
+                    <argument name="value" primitive="false" array="true">
+                        <type qualified="java.lang.String[]" dimension="1"/>
+                        <value>PMD.MethodNamingConventions</value>
+                    </argument>
+                </annotation>
+            </method>
+            <method name="fpng_encode_image_to_memory" signature="com.manticore.tools.Encoder.ByteArray (byte[],int,int,int,int)" qualified="fpng_encode_image_to_memory" scope="public" abstract="true" final="false" native="false" synchronized="false" static="false" varArgs="false">
+                <parameter name="pImage">
+                    <type qualified="byte[]" dimension="1"/>
+                </parameter>
+                <parameter name="w">
+                    <type qualified="int"/>
+                </parameter>
+                <parameter name="h">
+                    <type qualified="int"/>
+                </parameter>
+                <parameter name="num_chans">
+                    <type qualified="int"/>
+                </parameter>
+                <parameter name="flags">
+                    <type qualified="int"/>
+                </parameter>
+                <return qualified="com.manticore.tools.Encoder.ByteArray"/>
+                <annotation name="SuppressWarnings" qualified="java.lang.SuppressWarnings">
+                    <argument name="value" primitive="false" array="true">
+                        <type qualified="java.lang.String[]" dimension="1"/>
+                        <value>PMD.MethodNamingConventions</value>
+                    </argument>
+                </annotation>
+            </method>
+            <method name="hasAVX2" signature="int ()" qualified="hasAVX2" scope="public" abstract="true" final="false" native="false" synchronized="false" static="false" varArgs="false">
+                <return qualified="int"/>
+                <annotation name="SuppressWarnings" qualified="java.lang.SuppressWarnings">
+                    <argument name="value" primitive="false" array="true">
+                        <type qualified="java.lang.String[]" dimension="1"/>
+                        <value>PMD.MethodNamingConventions</value>
+                    </argument>
+                </annotation>
+            </method>
+            <field name="ENCODER" qualified="ENCODER" scope="public" volatile="false" transient="false" static="true" final="true">
+                <type qualified="com.manticore.tools.FPNGEncoder"/>
+                <constant></constant>
+            </field>
+        </interface>
+    </package>
+</root>

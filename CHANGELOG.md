@@ -2,6 +2,11 @@
 
 Changelog of fpng-java.
 
+## 1.3.1 (2024-09-30)
+
+### Other changes
+
+
 ## 1.3.0 (2024-09-30)
 
 ### Features
@@ -13,6 +18,9 @@ Changelog of fpng-java.
 
 -  buffer overflow in the Swap Bytes routine ([356c7](https://github.com/manticore-projects/fpng-java/commit/356c7127d3dd09f) Andreas Reichel)
 -  Copy InputStream to file first, before ImageIO reading ([5be88](https://github.com/manticore-projects/fpng-java/commit/5be8844df5d341e) Andreas Reichel)
+
+### Other changes
+
 
 ## 1.2.0 (2023-11-26)
 
@@ -26,6 +34,9 @@ Changelog of fpng-java.
 
 -  read resources from Class InputStream (instead System Resources) ([1c7eb](https://github.com/manticore-projects/fpng-java/commit/1c7ebd4905734fb) Andreas Reichel)
 
+### Other changes
+
+
 ## 1.1.0 (2023-11-23)
 
 ### Bug Fixes
@@ -38,12 +49,18 @@ Changelog of fpng-java.
 -  OS detection ([a0f04](https://github.com/manticore-projects/fpng-java/commit/a0f04255e74a8c1) Andreas Reichel)
 -  make the library resource distinct ([13f60](https://github.com/manticore-projects/fpng-java/commit/13f603576131819) Andreas Reichel)
 
+### Other changes
+
+
 ## 1.0.0 (2023-11-21)
 
 ### Bug Fixes
 
 -  call the correct class `FPNGEncoder` in the `maven-test` ([e50c4](https://github.com/manticore-projects/fpng-java/commit/e50c4f1f5555c4f) Andreas Reichel)
 -  Create New Filesystem for ZIP, when reading from a JAR file ([a77bb](https://github.com/manticore-projects/fpng-java/commit/a77bbbd50af1cec) Andreas Reichel)
+
+### Other changes
+
 
 ## 0.99.2 (2023-11-21)
 
@@ -58,11 +75,17 @@ Changelog of fpng-java.
 -  add `maven-test` sub project ([72d69](https://github.com/manticore-projects/fpng-java/commit/72d69a6ce49dab5) Andreas Reichel)
 -  introduce prefix='lib' for supporting the Windows OS ([e39f2](https://github.com/manticore-projects/fpng-java/commit/e39f2479a41bb99) Andreas Reichel)
 
+### Other changes
+
+
 ## 0.99.0 (2023-11-20)
 
 ### Bug Fixes
 
 -  FPNGE on Windows/MVCC ([43d29](https://github.com/manticore-projects/fpng-java/commit/43d29a81c8170b7) Andreas Reichel)
+
+### Other changes
+
 
 ## 0.11 (2023-11-20)
 
