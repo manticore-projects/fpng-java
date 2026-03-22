@@ -4,6 +4,20 @@ Changelog
 ************************
 
 
+Latest Changes since |JSQLPARSER_VERSION|
+=============================================================
+
+
+  * **build: fix publish issues**
+    
+    manticore-projects, 2026-03-22
+  * **chore: update GH actions**
+    
+    manticore-projects, 2026-03-22
+  * **chore: release 1.4.0**
+    
+    manticore-projects, 2026-03-22
+
 Version 1.4.0
 =============================================================
 
