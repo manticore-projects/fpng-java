@@ -23,8 +23,9 @@ plugins {
     id "com.github.spotbugs" version "latest.release"
     id "com.diffplug.spotless" version "latest.release"
     id 'org.hidetake.ssh' version "latest.release"
-    id "se.bjurr.gitchangelog.git-changelog-gradle-plugin" version "2.0.0"
+    id "se.bjurr.gitchangelog.git-changelog-gradle-plugin" version "latest.release"
     id "com.github.hierynomus.license" version "latest.release"
+    id "io.github.gradle-nexus.publish-plugin" version "latest.release"
 }
 
 group = 'com.manticore-projects.tools'
@@ -43,11 +44,6 @@ allprojects {
         gradlePluginPortal()
         mavenLocal()
         mavenCentral()
-
-        // Sonatype OSSRH
-        maven {
-            url = uri('https://s01.oss.sonatype.org/content/repositories/snapshots/')
-        }
     }
 
 
@@ -74,7 +70,7 @@ allprojects {
 
             // define the steps to apply to those files
             trimTrailingWhitespace()
-            indentWithSpaces(4) // or spaces. Takes an integer argument if you don't like 4
+            leadingTabsToSpaces(4) // or spaces. Takes an integer argument if you don't like 4
             endWithNewline()
         }
     }
@@ -108,21 +104,33 @@ allprojects {
     }
 }
 
+// Sonatype Central Portal publishing (replaces OSSRH)
+// Credentials: set sonatypeUsername and sonatypePassword in ~/.gradle/gradle.properties
+// or via ORG_GRADLE_PROJECT_sonatypeUsername / ORG_GRADLE_PROJECT_sonatypePassword env vars.
+// Use Central Portal user tokens (not legacy OSSRH tokens).
+nexusPublishing {
+    repositories {
+        sonatype {
+            nexusUrl = uri('https://ossrh-staging-api.central.sonatype.com/service/local/')
+        }
+    }
+}
+
 // Optional config if you want to configure versioning
 tasks.register('gitChangelogVersionTask', GitChangelogSemanticVersionTask) {
-    suffixSnapshot = true;
     majorVersionPattern = "^[Bb]reaking"
     minorVersionPattern = "[Ff]eature"
     patchVersionPattern = "[Ff]ix"
 }
 
+
 tasks.register('gitChangelogTask', GitChangelogTask) {
-    fromRepo = file("$projectDir")
-    file = new File("${projectDir}/src/site/sphinx/changelog.rst")
+    fromRepo.set(file("$projectDir").toString())
+    file.set(new File("${projectDir}/src/site/sphinx/changelog.rst"))
 
     // switch off the formatter since the indentation matters for Mark-down
     // @formatter:off
-    templateContent ="""
+    templateContent.set("""
 ************************
 Changelog
 ************************
@@ -130,7 +138,7 @@ Changelog
 
 {{#tags}}
 {{#ifMatches name "^Unreleased.*"}}
-Latest Changes since |FPNG_ENCODER_VERSION|
+Latest Changes since |JSQLPARSER_VERSION|
 {{/ifMatches}}
 {{#ifMatches name "^(?!Unreleased).*"}}
 Version {{name}}
@@ -149,55 +157,8 @@ Version {{name}}
 
  {{/issues}}
 {{/tags}}
-"""
+""")
     // @formatter:on
-}
-
-//def nextVersion = GitChangelogApi.gitChangelogApiBuilder()
-//        .withSemanticMajorVersionPattern("^[Bb]reaking")
-//        .withSemanticMinorVersionPattern("[Ff]eature")
-//        .getNextSemanticVersion();
-def nextVersion = '0.99.4'
-
-tasks.register('sphinx', Exec) {
-    dependsOn(gitChangelogTask, ':fpng-java:xmldoc', ':fpnge-java:xmldoc')
-
-    String PROLOG = """
-.. |_| unicode:: U+00A0
-    :trim:
-
-.. |FPNG_ENCODER_EMAIL| replace:: support@manticore-projects.com
-.. |FPNG_ENCODER_VERSION| replace:: ${version}
-.. |FPNG_ENCODER_SNAPSHOT_VERSION| replace:: ${nextVersion}
-.. |FPNG_ENCODER_STABLE_VERSION_LINK| raw:: html
-
-    <a href='http://manticore-projects.com/download/${project.name}-${version}/${project.name}-${version}.jar'>${project.name}-${version}.jar</a>
-
-.. |FPNG_ENCODER_SNAPSHOT_VERSION_LINK| raw:: html
-
-    <a href='http://manticore-projects.com/download/${project.name}-${version}/${project.name}-${nextVersion}.jar'>${project.name}-${nextVersion}.jar</a>
-
-"""
-
-    args = [
-            "-Dproject=FPNG_JAVA"
-            , "-Dcopyright=manticore-projects.com, 2023"
-            , "-Dauthor=Andreas Reichel"
-            , "-Drelease=${version}"
-            , "-Drst_prolog=$PROLOG"
-            , "${projectDir}/src/site/sphinx"
-            , "${project.buildDir}/sphinx"
-    ]
-
-    executable "sphinx-build"
-
-    //store the output instead of printing to the console:
-    standardOutput = new ByteArrayOutputStream()
-
-    //extension method stopTomcat.output() can be used to obtain the output:
-    ext.output = {
-        return standardOutput.toString()
-    }
 }
 
 remotes {

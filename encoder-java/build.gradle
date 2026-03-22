@@ -39,7 +39,7 @@ javadoc {
 
 spotless {
     java {
-        indentWithSpaces(4)
+        leadingTabsToSpaces(4)
         eclipse().configFile(  rootProject.file('config/formatter/eclipse-java-google-style.xml') )
     }
 }
@@ -93,13 +93,8 @@ publishing {
         }
     }
     repositories {
-        maven {
-            name "ossrh"
-            def releasesRepoUrl = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
-            def snapshotsRepoUrl = "https://s01.oss.sonatype.org/content/repositories/snapshots/"
-            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-            credentials(PasswordCredentials)
-        }
+        // Sonatype Central is configured via nexus-publish plugin in root build.gradle.
+        // Publish with: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository
         maven {
             name = "GitHubPackages"
             url = uri("https://maven.pkg.github.com/manticore-projects/fpng-java")

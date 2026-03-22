@@ -30,7 +30,7 @@ dependencies {
 }
 
 test {
-    beforeSuite {
+    doFirst {
         copy {
             from '../benchmark/src/test/resources/'
             into 'build/resources/test'
@@ -46,11 +46,16 @@ java {
 
     sourceCompatibility = '1.8'
     targetCompatibility = '1.8'
+
+    // needed for XML-Doclet to work (since Doclet changed again with Java 13)
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(17))
+    }
 }
 
 spotless {
     java {
-        indentWithSpaces(4)
+        leadingTabsToSpaces(4)
         eclipse().configFile(  rootProject.file('config/formatter/eclipse-java-google-style.xml') )
     }
 }
@@ -113,35 +118,26 @@ javadoc {
 }
 
 tasks.register('xmldoc', Javadoc) {
+    dependsOn(compileJava)
+
     def outFile = reporting.file(
             version.endsWith("-SNAPSHOT")
                     ? "xmlDoclet/javadoc_snapshot.xml"
                     : "xmlDoclet/javadoc_stable.xml"
     )
-
-    def rstFile = reporting.file(
-            version.endsWith("-SNAPSHOT")
-                    ? "xmlDoclet/javadoc_snapshot.rst"
-                    : "xmlDoclet/javadoc_stable.rst"
-    )
-
     source = sourceSets.main.allJava
-    // beware: Gradle deletes this folder automatically and there is no switch-off
+    classpath = sourceSets.main.runtimeClasspath
+
+    title = "FPNGe API $version"
     destinationDir = reporting.file("xmlDoclet")
     options.docletpath = configurations.xmlDoclet.files as List
-    options.doclet = "com.github.markusbernhardt.xmldoclet.XmlDoclet"
-    title = "API $version"
-    options.addBooleanOption("rst", true)
-    options.addBooleanOption("withFloatingToc", Boolean.parseBoolean(System.getenv().getOrDefault("FLOATING_TOC", "true")))
+    options.doclet = "com.manticore.tools.xmldoclet.XmlDoclet"
     options.addStringOption("basePackage", "com.manticore.tools")
     options.addStringOption("filename", outFile.getName())
 
-    dependsOn(compileJava)
-    doLast {
-        copy {
-            from rstFile
-            into "${projectDir}/src/site/sphinx/"
-        }
+    copy {
+        from outFile
+        into layout.projectDirectory.dir("src/site/sphinx/").asFile
     }
 }
 
@@ -188,13 +184,8 @@ publishing {
         }
     }
     repositories {
-        maven {
-            name "ossrh"
-            def releasesRepoUrl = "https://s01.oss.sonatype.org/service/local/staging/deploy/maven2/"
-            def snapshotsRepoUrl = "https://s01.oss.sonatype.org/content/repositories/snapshots/"
-            url = version.endsWith('SNAPSHOT') ? snapshotsRepoUrl : releasesRepoUrl
-            credentials(PasswordCredentials)
-        }
+        // Sonatype Central is configured via nexus-publish plugin in root build.gradle.
+        // Publish with: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository
         maven {
             name = "GitHubPackages"
             url = uri("https://maven.pkg.github.com/manticore-projects/fpng-java")

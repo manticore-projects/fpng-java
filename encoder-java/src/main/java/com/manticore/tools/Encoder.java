@@ -195,10 +195,10 @@ interface Encoder extends Library {
 
     static byte[] getRGBABytes(BufferedImage image, int channels) {
         // Convert to Java's native byte-backed format:
-        //   4 channels -> TYPE_4BYTE_ABGR (C side swaps to RGBA)
-        //   3 channels -> TYPE_3BYTE_BGR  (C side swaps to RGB)
+        // 4 channels -> TYPE_4BYTE_ABGR (C side swaps to RGBA)
+        // 3 channels -> TYPE_3BYTE_BGR (C side swaps to RGB)
         int type = channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR
-                                 : BufferedImage.TYPE_3BYTE_BGR;
+                : BufferedImage.TYPE_3BYTE_BGR;
 
         BufferedImage convertedImage;
         if (image.getType() == type) {

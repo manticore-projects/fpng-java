@@ -49,7 +49,7 @@ java {
 
 spotless {
         java {
-            indentWithSpaces(4)
+            leadingTabsToSpaces(4)
             eclipse().configFile(  rootProject.file('config/formatter/eclipse-java-google-style.xml') )
         }
 }
