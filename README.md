@@ -1,10 +1,10 @@
-# [fpng-java](http://manticore-projects.com/fpng-java) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)  [![Maven Central](https://maven-badges.herokuapp.com/maven-central/com.manticore-projects.tools/fpng-java/badge.svg)](http://maven-badges.herokuapp.com/maven-central/com.manticore-projects.tools/fpng-java) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
+# [fpng-java](http://manticore-projects.com/fpng-java) [![Gradle Package](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml/badge.svg)](https://github.com/manticore-projects/fpng-java/actions/workflows/gradle-publish.yml)  [![Maven Central](https://img.shields.io/maven-central/v/com.manticore-projects.tools/fpng-java)](https://central.sonatype.com/artifact/com.manticore-projects.tools/fpng-java) [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
-Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng) and the AVX optimized
-native [FPNGe Encoder](https://github.com/veluca93/fpnge). Contains  **64 bit binaries for Windows, Linux and
+Java Wrapper for the fast, native [FPNG Encoder](https://github.com/richgel999/fpng) (SSE2) and the AVX2 optimised
+native [FPNGe Encoder](https://github.com/veluca93/fpnge). Contains **64 bit binaries for Windows, Linux and
 macOS**, built and tested on GitHub Runners. Unfortunately, **macOS ARM64 on Apple Silicon is not supported** yet.
 
-An additional SSE translation from Java's ABGR into the expected RGBA arrays is provided. (The AVX version has been tested to be slower).
+The appropriate encoder is selected **automatically at runtime** via a `hasAVX2()` CPUID probe — the AVX2 library is never loaded on unsupported hardware. Channel conversion from Java's native ABGR/BGR format to RGBA/RGB is handled in C via SIMD byte shuffles.
 
 **License:** [GNU Affero General Public License](https://www.gnu.org/licenses/agpl-3.0.html#license-text), Version 3 or later.
 
@@ -15,26 +15,32 @@ An additional SSE translation from Java's ABGR into the expected RGBA arrays is 
 [Maven](#maven-artifacts) and [Gradle](#gradle-artifacts) artifacts are available, please see [below](#maven-artifacts).
 
 ```java
-import com.manticore.tools.FPNGEncoder;     // when using the SSE version
-import com.manticore.tools.FPNGE;           // when using the AVX version
+import com.manticore.tools.FPNGEncoder;     // SSE2 encoder (always safe to load)
+import com.manticore.tools.FPNGE;           // AVX2 encoder (only load when supported)
 
-byte[] bytesSSE = FPNGEncoder.encode(bufferedImage, 3, 0);    // encoding with 3 channels and fastest compression
+// Automatic runtime selection
+FPNGEncoder.ENCODER.fpng_init();
+boolean useAVX2 = FPNGEncoder.ENCODER.hasAVX2() != 0;
 
-byte[] bytesAVX = FPNGE.encode(bufferedImage, 3, 5);          // encoding with 3 channels and best compression
+byte[] png;
+if (useAVX2) {
+    png = FPNGE.encode(bufferedImage, 4, 5);        // AVX2, 4 channels, best compression
+} else {
+    png = FPNGEncoder.encode(bufferedImage, 4, 0);   // SSE2, 4 channels, fastest compression
+}
 ```
 
 There are 7 projects included:
 
-- `encoder` is an abstract base class for loading the native libraries, byte arrays and tests
-- `fpng` is the C++ source from [FPNG](https://github.com/richgel999/fpng) with an additional C wrapper
-- `fpng-java` provides the Java `FPNGE` encoder, depending on `fpng` and `JNA`
-- `fpnge` is the AVX optimized C++ source from [FPNGe](https://github.com/veluca93/fpnge) with an additional C wrapper
-- `fpnge-java` provides the Java `FPNGEncoder`, depending on `fpnge` and `JNA`
+- `encoder-java` is an abstract base class for loading the native libraries, byte arrays and tests
+- `fpng` is the C++ source from [FPNG](https://github.com/richgel999/fpng) with an additional C wrapper (SSE2)
+- `fpng-java` provides the Java `FPNGEncoder`, depending on `fpng` and `JNA`
+- `fpnge` is the AVX2 optimised C++ source from [FPNGe](https://github.com/veluca93/fpnge) with an additional C wrapper
+- `fpnge-java` provides the Java `FPNGE` encoder, depending on `fpnge` and `JNA`
 - `benchmark` are optional JMH based performance tests
-- `maven-test` as a most simple Java project stub for testing the Maven dependencies and the Native Libs on various OS
-  after publishing.
+- `maven-test` is a minimal Java project stub for testing the Maven dependencies and the native libs on various OS after publishing
 
-The following Gradle task will compile FPNG with `-O3 -march=x86-64 -mtune=generic` and wrap it into a JAR via JNA.
+The following Gradle task will compile the native libraries with `-O3 -march=x86-64 -mtune=generic` and wrap them into JARs via JNA.
 
 ```bash
 git clone --depth 1 https://github.com/manticore-projects/fpng-java.git
@@ -42,7 +48,7 @@ cd fpng-java
 gradle clean assemble
 ```
 
-The artifacts will be written to: `.fpng-java/build/libs/fpng-java-1.3.1-SNAPSHOT.jar` and `.fpnge-java/build/libs/fpnge-java-1.3.1-SNAPSHOT.jar`
+The artifacts will be written to `fpng-java/build/libs/fpng-java-1.4.1.jar` and `fpnge-java/build/libs/fpnge-java-1.4.1.jar`.
 
 
 # Benchmarks
@@ -94,28 +100,18 @@ The **compression rates** were set to `MEDIUM` for achieving comparable file-siz
 # Maven Artifacts
 
 ```xml
-<repositories>
-    <!-- Only needed when using Snapshots -->
-    <repository>
-        <id>sonatype-snapshots</id>
-        <snapshots>
-            <enabled>true</enabled>
-        </snapshots>
-        <url>https://s01.oss.sonatype.org/content/repositories/snapshots</url>
-    </repository>
-</repositories>
 <dependencies>
-    <!-- Only needed when using the FPNG SSE2 Encoder -->
+    <!-- SSE2 encoder (always safe, also provides hasAVX2() probe) -->
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpng-java</artifactId>
-        <version>(1.3.0,]</version>
+        <version>[1.4.1,)</version>
     </dependency>
-    <!-- Only needed when using the FPNGe AVX2 Encoder -->
+    <!-- AVX2 encoder (only load at runtime when hasAVX2() returns true) -->
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpnge-java</artifactId>
-        <version>(1.3.0,]</version>
+        <version>[1.4.1,)</version>
     </dependency>
 </dependencies>
 ```
@@ -125,19 +121,12 @@ The **compression rates** were set to `MEDIUM` for achieving comparable file-siz
 ```groovy
 repositories {
     mavenCentral()
-    maven {
-        url = uri('https://s01.oss.sonatype.org/content/repositories/releases/')
-    }
-    // Only needed when loading Snapshots
-    maven {
-        url = uri('https://s01.oss.sonatype.org/content/repositories/snapshots/')
-    }
 }
 dependencies {
-    // Only needed when using the FPNG SSE2 Encoder
-    implementation 'com.manticore-projects.tools:fpng-java:+'
-    // Only needed when using the FPNGe AVX2 Encoder
-    implementation 'com.manticore-projects.tools:fpnge-java:+'
+    // SSE2 encoder (always safe, also provides hasAVX2() probe)
+    implementation 'com.manticore-projects.tools:fpng-java:[1.4.1,)'
+    // AVX2 encoder (only load at runtime when hasAVX2() returns true)
+    implementation 'com.manticore-projects.tools:fpnge-java:[1.4.1,)'
 }
 ```
 
