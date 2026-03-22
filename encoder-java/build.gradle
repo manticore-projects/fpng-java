@@ -4,7 +4,6 @@ plugins {
     id 'signing'
 }
 
-group = 'com.manticore-projects.tools'
 description = 'Java Wrapper around a native encoder for a BufferedImage'
 
 repositories {
@@ -68,7 +67,7 @@ publishing {
                 }
             }
             pom {
-                name = 'fpng-java'
+                name = 'encoder'
                 description = 'Java Wrapper around the native SSE2 optimized FPNG Encoder'
                 url = 'https://manticore-projects.com/JavaFPNG'
                 licenses {

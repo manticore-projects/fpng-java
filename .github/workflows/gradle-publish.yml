@@ -24,10 +24,10 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - uses: gradle/actions/setup-gradle@v4
+
       - name: Gradle check
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          arguments: check -x :maven-test:test
+        run: ./gradlew check -x :maven-test:test
 
   # ── Build native libs on each platform ────────────────────────────
   build-native:
@@ -47,10 +47,10 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - uses: gradle/actions/setup-gradle@v4
+
       - name: Build FPNG and FPNGE native libs
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          arguments: :fpng:assemble :fpnge:assemble
+        run: ./gradlew :fpng:assemble :fpnge:assemble
 
       - name: Upload FPNG native artifact
         uses: actions/upload-artifact@v4
@@ -88,11 +88,10 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
-      - name: Compile Java modules
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          arguments: :fpng-java:compileJava :fpnge-java:compileJava
+      - uses: gradle/actions/setup-gradle@v4
 
+      # Download pre-built native libs from ALL platforms BEFORE any Gradle runs.
+      # This replaces the copyNativeLib task which would only build linux libs.
       - name: Download all FPNG native artifacts
         uses: actions/download-artifact@v4
         with:
@@ -128,10 +127,17 @@ jobs:
           echo -e "${{ secrets.GPG_SECRET_KEY }}" | gpg --batch --import
           gpg --export-secret-keys -o ~/.gnupg/secring.gpg
 
+      # Skip copyNativeLib — native libs are already in place from artifact download.
+      # Without -x, compileJava triggers copyNativeLib -> :fpng:assemble -> C++ build,
+      # which overwrites the multi-platform artifacts with linux-only libs.
       - name: Publish to GitHub Packages and Maven Central
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          arguments: :encoder-java:publish :fpng-java:publish :fpnge-java:publish
+        run: >-
+          ./gradlew
+          :encoder-java:publish
+          :fpng-java:publish
+          :fpnge-java:publish
+          -x :fpng:copyNativeLib
+          -x :fpnge:copyNativeLib
         env:
           USERNAME: ${{ github.actor }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -155,7 +161,7 @@ jobs:
           java-version: '17'
           distribution: 'temurin'
 
+      - uses: gradle/actions/setup-gradle@v4
+
       - name: Run maven-test suite
-        uses: gradle/actions/setup-gradle@v4
-        with:
-          arguments: --no-build-cache --refresh-dependencies :maven-test:test
+        run: ./gradlew --no-build-cache --refresh-dependencies :maven-test:test

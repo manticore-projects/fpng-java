@@ -32,6 +32,8 @@ group = 'com.manticore-projects.tools'
 description = 'Java Wrappers for the native optimized FPNG/FPNGE Encoders'
 
 allprojects {
+    group = 'com.manticore-projects.tools'
+
     apply plugin: 'jacoco'
     apply plugin: 'pmd'
     apply plugin: 'checkstyle'
