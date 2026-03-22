@@ -24,6 +24,7 @@ import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
 import javax.imageio.ImageIO;
+import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
 import java.io.File;
@@ -193,13 +194,24 @@ interface Encoder extends Library {
     }
 
     static byte[] getRGBABytes(BufferedImage image, int channels) {
-        BufferedImage convertedImage = new BufferedImage(image.getWidth(), image.getHeight(),
-                channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR : BufferedImage.TYPE_3BYTE_BGR);
+        // Convert to Java's native byte-backed format:
+        //   4 channels -> TYPE_4BYTE_ABGR (C side swaps to RGBA)
+        //   3 channels -> TYPE_3BYTE_BGR  (C side swaps to RGB)
+        int type = channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR
+                                 : BufferedImage.TYPE_3BYTE_BGR;
 
-        // Draw the original image onto the new image
-        convertedImage.getGraphics().drawImage(image, 0, 0, null);
-        DataBufferByte dataBuffer = (DataBufferByte) convertedImage.getRaster().getDataBuffer();
-        return dataBuffer.getData();
+        BufferedImage convertedImage;
+        if (image.getType() == type) {
+            // Already in the right format — skip the redraw entirely
+            convertedImage = image;
+        } else {
+            convertedImage = new BufferedImage(image.getWidth(), image.getHeight(), type);
+            Graphics g = convertedImage.getGraphics();
+            g.drawImage(image, 0, 0, null);
+            g.dispose(); // don't leak the Graphics
+        }
+
+        return ((DataBufferByte) convertedImage.getRaster().getDataBuffer()).getData();
     }
 
     static Object load(Class<? extends Library> clazz, final String libraryName) {

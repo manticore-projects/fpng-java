@@ -17,13 +17,14 @@ dependencies {
     testImplementation "com.manticore-projects.tools:fpng-java:+"
     testImplementation "com.manticore-projects.tools:fpnge-java:+"
 
-    testImplementation platform('org.junit:junit-bom:+')
-    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
     testImplementation 'commons-io:commons-io:+'
 }
 
 test {
-    beforeSuite {
+    doFirst {
         copy {
             from '../benchmark/src/test/resources/'
             into 'build/resources/test'
@@ -31,5 +32,6 @@ test {
         }
     }
     useJUnitPlatform()
-}
 
+    dependsOn ":fpng-java:test", ":fpnge-java:test"
+}

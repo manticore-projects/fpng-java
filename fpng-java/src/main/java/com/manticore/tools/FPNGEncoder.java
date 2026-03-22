@@ -51,4 +51,7 @@ public interface FPNGEncoder extends Encoder {
 
     @SuppressWarnings({"PMD.MethodNamingConventions"})
     ByteArray fpng_encode_image_to_memory(byte[] pImage, int w, int h, int num_chans, int flags);
+
+    @SuppressWarnings({"PMD.MethodNamingConventions"})
+    int hasAVX2();
 }

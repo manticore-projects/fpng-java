@@ -1592,10 +1592,23 @@ extern "C" size_t FPNGEEncode(size_t bytes_per_channel, size_t num_channels,
 }
 
 extern "C" EXPORT void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
-    const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
+    int i = 0;
 
-    int i;
-    for (i = 0; i + 3 < numPixels; i += 4) {
+#ifdef __AVX2__
+    // AVX2: process 8 pixels (32 bytes) per iteration
+    const __m256i shuffleMask256 = _mm256_set_epi8(
+        12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3,
+        12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
+    for (; i + 8 <= numPixels; i += 8) {
+        __m256i abgr = _mm256_loadu_si256((__m256i*)(pImage + i * 4));
+        __m256i rgba = _mm256_shuffle_epi8(abgr, shuffleMask256);
+        _mm256_storeu_si256((__m256i*)(pImage + i * 4), rgba);
+    }
+#endif
+
+    // SSE: process 4 pixels (16 bytes) per iteration
+    const __m128i shuffleMask = _mm_set_epi8( 12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
+    for (; i + 4 <= numPixels; i += 4) {
         __m128i abgr = _mm_loadu_si128((__m128i*)(pImage + i * 4));
         __m128i rgba = _mm_shuffle_epi8(abgr, shuffleMask);
         _mm_storeu_si128((__m128i*)(pImage + i * 4), rgba);
@@ -1616,15 +1629,53 @@ extern "C" EXPORT void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixe
 }
 
 extern "C" EXPORT void swapChannelsBGRtoRGB(unsigned char* pImage, int numPixels) {
-    // Ensure numPixels is a multiple of 4 for alignment
-    int numIterations = numPixels / 4;
+    // Swap B<->R for 3bpp pixels.  Process 4 pixels (12 bytes) per SSE iteration,
+    // writing only 12 bytes back to avoid overwriting the next pixel group.
+    // _mm_set_epi8 args go e15..e0; for each 3-byte BGR pixel we swap byte 0<->2.
+    const __m128i swapMask = _mm_set_epi8(
+        -1, -1, -1, -1,   // bytes 12-15: unused (won't be stored)
+         9, 10, 11,        // pixel 3: B3<->R3
+         6,  7,  8,        // pixel 2: B2<->R2
+         3,  4,  5,        // pixel 1: B1<->R1
+         0,  1,  2);       // pixel 0: e2=0,e1=1,e0=2 => result[0]=src[2]=R0
 
-    // 3 * 4 = 12, so don't shuffle the last 4 bytes
-    const __m128i shuffleMask = _mm_set_epi8( 15, 14, 13, 12, 9, 10, 11, 6, 7, 8, 3, 4, 5, 0, 1, 2 );
-    for (int i = 0; i < numIterations; ++i) {
-        __m128i pixels = _mm_loadu_si128((__m128i*)(pImage + i * 4 * 3));
-        __m128i shuffled = _mm_shuffle_epi8(pixels, shuffleMask);
-        _mm_storeu_si128((__m128i*)(pImage + i * 4 * 3), shuffled);
+    int i = 0;
+
+#ifdef __AVX2__
+    // AVX2: process 8 pixels (24 bytes) per iteration.
+    // Load 32 bytes, shuffle within each 128-bit lane (4 pixels per lane),
+    // store only 24 bytes back.
+    const __m256i swapMask256 = _mm256_broadcastsi128_si256(swapMask);
+    for (; i + 8 <= numPixels; i += 8) {
+        unsigned char* p = pImage + i * 3;
+        // Process low 4 pixels (bytes 0-11)
+        __m128i lo = _mm_loadu_si128((__m128i*)p);
+        __m128i lo_shuffled = _mm_shuffle_epi8(lo, swapMask);
+        _mm_storel_epi64((__m128i*)p, lo_shuffled);
+        *(uint32_t*)(p + 8) = (uint32_t)_mm_extract_epi32(lo_shuffled, 2);
+        // Process high 4 pixels (bytes 12-23)
+        __m128i hi = _mm_loadu_si128((__m128i*)(p + 12));
+        __m128i hi_shuffled = _mm_shuffle_epi8(hi, swapMask);
+        _mm_storel_epi64((__m128i*)(p + 12), hi_shuffled);
+        *(uint32_t*)(p + 20) = (uint32_t)_mm_extract_epi32(hi_shuffled, 2);
+    }
+#endif
+
+    for (; i + 4 <= numPixels; i += 4) {
+        unsigned char* p = pImage + i * 3;
+        __m128i pixels = _mm_loadu_si128((__m128i*)p);
+        __m128i shuffled = _mm_shuffle_epi8(pixels, swapMask);
+        // Store only 12 bytes (4 pixels * 3 bytes) to avoid overwriting next group
+        _mm_storel_epi64((__m128i*)p, shuffled);                           // bytes 0-7
+        *(uint32_t*)(p + 8) = (uint32_t)_mm_extract_epi32(shuffled, 2);   // bytes 8-11
+    }
+
+    // Handle remaining pixels (scalar tail)
+    for (; i < numPixels; ++i) {
+        unsigned char* p = pImage + i * 3;
+        unsigned char tmp = p[0];
+        p[0] = p[2];
+        p[2] = tmp;
     }
 }
 
@@ -1635,21 +1686,28 @@ extern "C" EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_c
     FPNGEFillOptions(&options, comp_level, FPNGE_CICP_NONE);
 
     size_t row_stride = width * num_channels * bytes_per_channel;
+    size_t numPixels = width * height;
 
-    // 4 channels will arrive as BufferedImage.TYPE_4BYTE_ABGR
-    // 3 channels will arrive as BufferedImage.TYPE_3BYTE_BGR
-    if (num_channels==(uint32_t) 4) {
-        swapChannelsABGRtoRGBA( (unsigned char*) pImage, width * height);
+    // Swap channels in-place to RGBA/RGB, encode, then swap back to restore
+    // the caller's buffer. Two swaps are far cheaper than a full-image copy.
+    // 4 channels arrive as BufferedImage.TYPE_4BYTE_ABGR
+    // 3 channels arrive as BufferedImage.TYPE_3BYTE_BGR
+    if (num_channels == (size_t)4) {
+        swapChannelsABGRtoRGBA(pImage, numPixels);
     } else {
-        swapChannelsBGRtoRGB( (unsigned char*) pImage, width * height);
+        swapChannelsBGRtoRGB(pImage, numPixels);
     }
 
-    CharArray* data = (CharArray*) malloc( sizeof(CharArray) );
-        data->size = FPNGEOutputAllocSize(bytes_per_channel, num_channels, width, height);
-        data->data = (unsigned char*) malloc(data->size);
+    CharArray* data = (CharArray*) malloc(sizeof(CharArray));
+    if (!data) goto restore;
+    data->size = FPNGEOutputAllocSize(bytes_per_channel, num_channels, width, height);
+    data->data = (unsigned char*) malloc(data->size);
+    if (!data->data) { free(data); data = nullptr; goto restore; }
 
     data->size = FPNGEEncode(bytes_per_channel, num_channels, pImage, width, row_stride,
-                                              height, data->data, &options);
+                             height, data->data, &options);
+
+restore:
 
     return data;
 }

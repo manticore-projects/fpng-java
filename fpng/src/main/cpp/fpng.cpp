@@ -62,7 +62,7 @@
 	#endif
 #endif
 
-// Set to 0 if your platform doesn't support unaligned 32-bit/64-bit reads/writes. 
+// Set to 0 if your platform doesn't support unaligned 32-bit/64-bit reads/writes.
 #ifndef FPNG_USE_UNALIGNED_LOADS
 	#if FPNG_X86_OR_X64_CPU
 		// On x86/x64 we default to enabled, for a noticeable perf gain.
@@ -186,7 +186,7 @@ namespace fpng
 	// Customized the very common case of reading a 24bpp pixel from memory
 	static inline uint32_t READ_RGB_PIXEL(const void* p)
 	{
-#if FPNG_USE_UNALIGNED_LOADS 
+#if FPNG_USE_UNALIGNED_LOADS
 		return READ_LE32(p) & 0xFFFFFF;
 #else
 		const uint8_t* pBytes = (const uint8_t*)p;
@@ -194,7 +194,7 @@ namespace fpng
 #endif
 	}
 
-	// See "Slicing by 4" CRC-32 algorithm here: 
+	// See "Slicing by 4" CRC-32 algorithm here:
 	// https://create.stephan-brumme.com/crc32/
 
 	// Precomputed 4KB of CRC-32 tables
@@ -250,7 +250,7 @@ namespace fpng
 		return ~crc;
 	}
 
-#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE 
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
 	// See Fast CRC Computation for Generic Polynomials Using PCLMULQDQ Instruction":
 	// https://www.intel.com/content/dam/www/public/us/en/documents/white-papers/fast-crc-computation-generic-polynomials-pclmulqdq-paper.pdf
 	// Requires PCLMUL and SSE 4.1. This function skips Step 1 (fold by 4) for simplicity/less code.
@@ -260,7 +260,7 @@ namespace fpng
 
 		// See page 22 (bit reflected constants for gzip)
 #ifdef _MSC_VER
-		static const uint64_t __declspec(align(16)) 
+		static const uint64_t __declspec(align(16))
 #else
 		static const uint64_t __attribute__((aligned(16)))
 #endif
@@ -293,7 +293,7 @@ namespace fpng
 	}
 #endif
 
-#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE 
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
 
 #ifndef _MSC_VER
 	static void do_cpuid(uint32_t eax, uint32_t ecx, uint32_t* regs)
@@ -318,7 +318,7 @@ namespace fpng
 		cpu_info() { memset(this, 0, sizeof(*this)); }
 
 		bool m_initialized, m_has_fpu, m_has_mmx, m_has_sse, m_has_sse2, m_has_sse3, m_has_ssse3, m_has_sse41, m_has_sse42, m_has_avx, m_has_avx2, m_has_pclmulqdq;
-				
+
 		void init()
 		{
 			if (m_initialized)
@@ -371,7 +371,7 @@ namespace fpng
 	};
 
 	cpu_info g_cpu_info;
-		
+
 	void fpng_init()
 	{
 		g_cpu_info.init();
@@ -384,7 +384,7 @@ namespace fpng
 
 	bool fpng_cpu_supports_sse41()
 	{
-#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE 
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
 		assert(g_cpu_info.m_initialized);
 		return g_cpu_info.can_use_sse41();
 #else
@@ -394,7 +394,7 @@ namespace fpng
 
 	uint32_t fpng_crc32(const void* pData, size_t size, uint32_t prev_crc32)
 	{
-#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE 
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
 		if (g_cpu_info.can_use_pclmul())
 			return crc32_sse41_simd(static_cast<const uint8_t *>(pData), size, prev_crc32);
 #endif
@@ -402,7 +402,7 @@ namespace fpng
 		return crc32_slice_by_4(pData, size, prev_crc32);
 	}
 
-#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE 
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
 	// See "Fast Computation of Adler32 Checksums":
 	// https://www.intel.com/content/www/us/en/developer/articles/technical/fast-computation-of-adler32-checksums.html
 	// SSE 4.1, 16 bytes per iteration
@@ -413,7 +413,7 @@ namespace fpng
 
 		while (len >= 16)
 		{
-			__m128i a = _mm_setr_epi32(s1, 0, 0, 0), b = _mm_setzero_si128(), c = _mm_setzero_si128(), d = _mm_setzero_si128(), 
+			__m128i a = _mm_setr_epi32(s1, 0, 0, 0), b = _mm_setzero_si128(), c = _mm_setzero_si128(), d = _mm_setzero_si128(),
 				e = _mm_setzero_si128(), f = _mm_setzero_si128(), g = _mm_setzero_si128(), h = _mm_setzero_si128();
 
 			const size_t n = minimum<size_t>(len >> 4, 5552);
@@ -481,7 +481,7 @@ namespace fpng
 
 	uint32_t fpng_adler32(const void* pData, size_t size, uint32_t adler)
 	{
-#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE 
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
 		if (g_cpu_info.can_use_sse41())
 			return adler32_sse_16((const uint8_t*)pData, size, adler);
 #endif
@@ -496,7 +496,7 @@ namespace fpng
 		const uint32_t first_byte = reinterpret_cast<const uint8_t*>(&endian_check)[0];
 		return first_byte == 0xCD;
 	}
-		
+
 	static const uint16_t g_defl_len_sym[256] = {
 	  257,258,259,260,261,262,263,264,265,265,266,266,267,267,268,268,269,269,269,269,270,270,270,270,271,271,271,271,272,272,272,272,
 	  273,273,273,273,273,273,273,273,274,274,274,274,274,274,274,274,275,275,275,275,275,275,275,275,276,276,276,276,276,276,276,276,
@@ -526,7 +526,7 @@ namespace fpng
 	  17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,
 	  17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,
 	  17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17,17 };
-		
+
 	static const uint32_t g_bitmasks[17] = { 0x0000, 0x0001, 0x0003, 0x0007, 0x000F, 0x001F, 0x003F, 0x007F, 0x00FF, 0x01FF, 0x03FF, 0x07FF, 0x0FFF, 0x1FFF, 0x3FFF, 0x7FFF, 0xFFFF };
 
 	// Huffman tables generated by fpng_test -t @filelist.txt. Total alpha files : 1440, Total opaque files : 5627.
@@ -592,8 +592,8 @@ namespace fpng
 	enum
 	{
 		DEFL_MAX_HUFF_TABLES = 3,
-		DEFL_MAX_HUFF_SYMBOLS = 288,	
-		DEFL_MAX_HUFF_SYMBOLS_0 = 288,	
+		DEFL_MAX_HUFF_SYMBOLS = 288,
+		DEFL_MAX_HUFF_SYMBOLS_0 = 288,
 		DEFL_MAX_HUFF_SYMBOLS_1 = 32,
 		DEFL_MAX_HUFF_SYMBOLS_2 = 19,
 		DEFL_LZ_DICT_SIZE = 32768,
@@ -913,12 +913,12 @@ do { \
 	{
 		assert((num_chans == 3) || (num_chans == 4));
 		assert(HUFF_COUNTS_SIZE == DEFL_MAX_HUFF_SYMBOLS_0); // must be equal
-				
+
 		defl_huff dh;
 		memset(&dh, 0, sizeof(dh));
 
 		uint32_t lit_freq[DEFL_MAX_HUFF_SYMBOLS_0];
-		
+
 		uint32_t shift_len = 0;
 		for (; ; )
 		{
@@ -937,10 +937,10 @@ do { \
 
 			if (i == DEFL_MAX_HUFF_SYMBOLS_0)
 				break;
-			
+
 			shift_len++;
 		}
-				
+
 		// Ensure all valid Deflate literal/EOB/length syms are non-zero, so anything can be coded.
 		for (uint32_t i = 0; i <= 256; i++)
 		{
@@ -956,11 +956,11 @@ do { \
 		}
 
 		adjust_freq32(DEFL_MAX_HUFF_SYMBOLS_0, lit_freq, &dh.m_huff_count[0][0]);
-		
+
 		const uint32_t dist_sym = g_defl_small_dist_sym[num_chans - 1];
 		dh.m_huff_count[1][dist_sym] = 1;
 		dh.m_huff_count[1][dist_sym + 1] = 1; // to workaround a bug in wuffs decoder
-			
+
 		prefix.resize(4096);
 		uint8_t* pDst = prefix.data();
 		uint32_t dst_buf_size = (uint32_t)prefix.size();
@@ -973,7 +973,7 @@ do { \
 
 		// write BFINAL bit
 		PUT_BITS(1, 1);
-				
+
 		if (!defl_start_dynamic_block(&dh, pDst, dst_ofs, dst_buf_size, bit_buf, bit_buf_size))
 			return false;
 
@@ -1012,16 +1012,19 @@ do { \
 
 		uint32_t lit_freq[DEFL_MAX_HUFF_SYMBOLS_0];
 		memset(lit_freq, 0, sizeof(lit_freq));
-		
+
 		const uint8_t* pSrc = pImg;
 		uint32_t src_ofs = 0;
 
-		uint32_t src_adler32 = fpng_adler32(pImg, bpl * h, FPNG_ADLER32_INIT);
+		uint32_t src_adler32 = FPNG_ADLER32_INIT;
 
 		const uint32_t dist_sym = g_defl_small_dist_sym[3 - 1];
-				
+
 		for (uint32_t y = 0; y < h; y++)
 		{
+			// Compute adler32 incrementally per row (avoids a separate full-image pass)
+			src_adler32 = fpng_adler32(pSrc + src_ofs, bpl, src_adler32);
+
 			const uint32_t end_src_ofs = src_ofs + bpl;
 
 			const uint32_t filter_lit = pSrc[src_ofs++];
@@ -1059,13 +1062,13 @@ do { \
 							break;
 						match_len += 3;
 					}
-										
+
 					*pDst_codes++ = match_len - 1;
 
 					uint32_t adj_match_len = match_len - 3;
 
 					lit_freq[g_defl_len_sym[adj_match_len]]++;
-					
+
 					src_ofs += match_len;
 				}
 				else
@@ -1088,9 +1091,9 @@ do { \
 		assert(src_ofs == h * bpl);
 		const uint32_t total_codes = (uint32_t)(pDst_codes - codes.data());
 		assert(total_codes <= codes.size());
-								
+
 		defl_huff dh;
-		
+
 		lit_freq[256] = 1;
 
 		adjust_freq32(DEFL_MAX_HUFF_SYMBOLS_0, lit_freq, &dh.m_huff_count[0][0]);
@@ -1104,7 +1107,7 @@ do { \
 
 		assert(bit_buf_size <= 7);
 		assert(dh.m_huff_codes[1][dist_sym] == 0 && dh.m_huff_code_sizes[1][dist_sym] == 1);
-				
+
 		for (uint32_t i = 0; i < total_codes; i++)
 		{
 			uint32_t c = codes[i];
@@ -1132,7 +1135,7 @@ do { \
 				uint32_t match_len = c_type + 1;
 
 				uint32_t adj_match_len = match_len - 3;
-				
+
 				PUT_BITS_CZ(dh.m_huff_codes[0][g_defl_len_sym[adj_match_len]], dh.m_huff_code_sizes[0][g_defl_len_sym[adj_match_len]]);
 				PUT_BITS(adj_match_len & g_bitmasks[g_defl_len_extra[adj_match_len]], g_defl_len_extra[adj_match_len] + 1); // up to 6 bits, +1 for the match distance Huff code which is always 0
 
@@ -1179,10 +1182,13 @@ do { \
 		const uint8_t* pSrc = pImg;
 		uint32_t src_ofs = 0;
 
-		uint32_t src_adler32 = fpng_adler32(pImg, bpl * h, FPNG_ADLER32_INIT);
+		uint32_t src_adler32 = FPNG_ADLER32_INIT;
 
 		for (uint32_t y = 0; y < h; y++)
 		{
+			// Compute adler32 incrementally per row (avoids a separate full-image pass)
+			src_adler32 = fpng_adler32(pSrc + src_ofs, bpl, src_adler32);
+
 			const uint32_t end_src_ofs = src_ofs + bpl;
 
 			const uint32_t filter_lit = pSrc[src_ofs++];
@@ -1198,7 +1204,7 @@ do { \
 				PUT_BITS_CZ(g_dyn_huff_3_codes[(lits >> 16)].m_code, g_dyn_huff_3_codes[(lits >> 16)].m_code_size);
 
 				src_ofs += 3;
-			
+
 				prev_lits = lits;
 			}
 
@@ -1219,7 +1225,7 @@ do { \
 							break;
 						match_len += 3;
 					}
-										
+
 					uint32_t adj_match_len = match_len - 3;
 
 					PUT_BITS_CZ(g_dyn_huff_3_codes[g_defl_len_sym[adj_match_len]].m_code, g_dyn_huff_3_codes[g_defl_len_sym[adj_match_len]].m_code_size);
@@ -1232,7 +1238,7 @@ do { \
 					PUT_BITS_CZ(g_dyn_huff_3_codes[lits & 0xFF].m_code, g_dyn_huff_3_codes[lits & 0xFF].m_code_size);
 					PUT_BITS_CZ(g_dyn_huff_3_codes[(lits >> 8) & 0xFF].m_code, g_dyn_huff_3_codes[(lits >> 8) & 0xFF].m_code_size);
 					PUT_BITS_CZ(g_dyn_huff_3_codes[(lits >> 16)].m_code, g_dyn_huff_3_codes[(lits >> 16)].m_code_size);
-					
+
 					prev_lits = lits;
 
 					src_ofs += 3;
@@ -1245,7 +1251,7 @@ do { \
 		} // y
 
 		assert(src_ofs == h * bpl);
-		
+
 		assert(bit_buf_size <= 7);
 
 		PUT_BITS_CZ(g_dyn_huff_3_codes[256].m_code, g_dyn_huff_3_codes[256].m_code_size);
@@ -1294,12 +1300,15 @@ do { \
 		const uint8_t* pSrc = pImg;
 		uint32_t src_ofs = 0;
 
-		uint32_t src_adler32 = fpng_adler32(pImg, bpl * h, FPNG_ADLER32_INIT);
+		uint32_t src_adler32 = FPNG_ADLER32_INIT;
 
 		const uint32_t dist_sym = g_defl_small_dist_sym[4 - 1];
 
 		for (uint32_t y = 0; y < h; y++)
 		{
+			// Compute adler32 incrementally per row (avoids a separate full-image pass)
+			src_adler32 = fpng_adler32(pSrc + src_ofs, bpl, src_adler32);
+
 			const uint32_t end_src_ofs = src_ofs + bpl;
 
 			const uint32_t filter_lit = pSrc[src_ofs++];
@@ -1318,7 +1327,7 @@ do { \
 				lit_freq[lits >> 24]++;
 
 				src_ofs += 4;
-				
+
 				prev_lits = lits;
 			}
 
@@ -1331,19 +1340,41 @@ do { \
 					uint32_t match_len = 4;
 					uint32_t max_match_len = minimum<int>(252, (int)(end_src_ofs - src_ofs));
 
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
+					// SSE2: compare 4 pixels (16 bytes) per iteration for faster RLE match extension
+					{
+						const __m128i ref = _mm_set1_epi32((int)lits);
+						while (match_len + 16 <= max_match_len)
+						{
+							__m128i v = _mm_loadu_si128((const __m128i*)(pSrc + src_ofs + match_len));
+							int mask = _mm_movemask_epi8(_mm_cmpeq_epi32(v, ref));
+							if (mask != 0xFFFF)
+							{
+								// Scalar cleanup for partial SIMD match
+								while (match_len < max_match_len && READ_LE32(pSrc + src_ofs + match_len) == lits)
+									match_len += 4;
+								goto match_done_4rle;
+							}
+							match_len += 16;
+						}
+					}
+#endif
 					while (match_len < max_match_len)
 					{
 						if (READ_LE32(pSrc + src_ofs + match_len) != lits)
 							break;
 						match_len += 4;
 					}
-										
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
+match_done_4rle:
+#endif
+
 					*pDst_codes++ = match_len - 1;
 
 					uint32_t adj_match_len = match_len - 3;
 
 					lit_freq[g_defl_len_sym[adj_match_len]]++;
-					
+
 					src_ofs += match_len;
 				}
 				else
@@ -1354,7 +1385,7 @@ do { \
 					lit_freq[(lits >> 8) & 0xFF]++;
 					lit_freq[(lits >> 16) & 0xFF]++;
 					lit_freq[lits >> 24]++;
-					
+
 					prev_lits = lits;
 
 					src_ofs += 4;
@@ -1367,13 +1398,13 @@ do { \
 		assert(src_ofs == h * bpl);
 		const uint32_t total_codes = (uint32_t)(pDst_codes - codes.data());
 		assert(total_codes <= codes.size());
-						
+
 		defl_huff dh;
-		
+
 		lit_freq[256] = 1;
 
 		adjust_freq32(DEFL_MAX_HUFF_SYMBOLS_0, lit_freq, &dh.m_huff_count[0][0]);
-		
+
 		memset(&dh.m_huff_count[1][0], 0, sizeof(dh.m_huff_count[1][0]) * DEFL_MAX_HUFF_SYMBOLS_1);
 		dh.m_huff_count[1][dist_sym] = 1;
 		dh.m_huff_count[1][dist_sym + 1] = 1; // to workaround a bug in wuffs decoder
@@ -1419,7 +1450,7 @@ do { \
 				uint32_t match_len = c_type + 1;
 
 				uint32_t adj_match_len = match_len - 3;
-				
+
 				PUT_BITS_CZ(dh.m_huff_codes[0][g_defl_len_sym[adj_match_len]], dh.m_huff_code_sizes[0][g_defl_len_sym[adj_match_len]]);
 				PUT_BITS(adj_match_len & g_bitmasks[g_defl_len_extra[adj_match_len]], g_defl_len_extra[adj_match_len] + 1); // up to 6 bits, +1 for the match distance Huff code which is always 0
 
@@ -1465,10 +1496,13 @@ do { \
 		const uint8_t* pSrc = pImg;
 		uint32_t src_ofs = 0;
 
-		uint32_t src_adler32 = fpng_adler32(pImg, bpl * h, FPNG_ADLER32_INIT);
+		uint32_t src_adler32 = FPNG_ADLER32_INIT;
 
 		for (uint32_t y = 0; y < h; y++)
 		{
+			// Compute adler32 incrementally per row (avoids a separate full-image pass)
+			src_adler32 = fpng_adler32(pSrc + src_ofs, bpl, src_adler32);
+
 			const uint32_t end_src_ofs = src_ofs + bpl;
 
 			const uint32_t filter_lit = pSrc[src_ofs++];
@@ -1488,11 +1522,11 @@ do { \
 				{
 					PUT_BITS_FLUSH;
 				}
-				
+
 				PUT_BITS_CZ(g_dyn_huff_4_codes[(lits >> 24)].m_code, g_dyn_huff_4_codes[(lits >> 24)].m_code_size);
 
 				src_ofs += 4;
-				
+
 				prev_lits = lits;
 			}
 
@@ -1501,18 +1535,40 @@ do { \
 			while (src_ofs < end_src_ofs)
 			{
 				uint32_t lits = READ_LE32(pSrc + src_ofs);
-								
+
 				if (lits == prev_lits)
 				{
 					uint32_t match_len = 4;
 					uint32_t max_match_len = minimum<int>(252, (int)(end_src_ofs - src_ofs));
 
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
+					// SSE2: compare 4 pixels (16 bytes) per iteration for faster RLE match extension
+					{
+						const __m128i ref = _mm_set1_epi32((int)lits);
+						while (match_len + 16 <= max_match_len)
+						{
+							__m128i v = _mm_loadu_si128((const __m128i*)(pSrc + src_ofs + match_len));
+							int mask = _mm_movemask_epi8(_mm_cmpeq_epi32(v, ref));
+							if (mask != 0xFFFF)
+							{
+								// Scalar cleanup for partial SIMD match
+								while (match_len < max_match_len && READ_LE32(pSrc + src_ofs + match_len) == lits)
+									match_len += 4;
+								goto match_done_4rle_op;
+							}
+							match_len += 16;
+						}
+					}
+#endif
 					while (match_len < max_match_len)
 					{
 						if (READ_LE32(pSrc + src_ofs + match_len) != lits)
 							break;
 						match_len += 4;
 					}
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
+match_done_4rle_op:
+#endif
 
 					uint32_t adj_match_len = match_len - 3;
 
@@ -1522,9 +1578,9 @@ do { \
 					if (match_len == 4)
 					{
 						// This check is optional - see if just encoding 4 literals would be cheaper than using a short match.
-						uint32_t lit_bits = g_dyn_huff_4_codes[lits & 0xFF].m_code_size + g_dyn_huff_4_codes[(lits >> 8) & 0xFF].m_code_size + 
+						uint32_t lit_bits = g_dyn_huff_4_codes[lits & 0xFF].m_code_size + g_dyn_huff_4_codes[(lits >> 8) & 0xFF].m_code_size +
 							g_dyn_huff_4_codes[(lits >> 16) & 0xFF].m_code_size + g_dyn_huff_4_codes[(lits >> 24)].m_code_size;
-						
+
 						if ((match_code_bits + len_extra_bits + 1) > lit_bits)
 							goto do_literals;
 					}
@@ -1549,7 +1605,7 @@ do_literals:
 					PUT_BITS_CZ(g_dyn_huff_4_codes[(lits >> 24)].m_code, g_dyn_huff_4_codes[(lits >> 24)].m_code_size);
 
 					src_ofs += 4;
-					
+
 					prev_lits = lits;
 				}
 
@@ -1590,7 +1646,7 @@ do_literals:
 			memcpy(buf.data() + l, pData, len);
 		}
 	}
-		
+
 	static void apply_filter(uint32_t filter, int w, int h, uint32_t num_chans, uint32_t bpl, const uint8_t* pSrc, const uint8_t* pPrev_src, uint8_t* pDst)
 	{
 		(void)h;
@@ -1612,7 +1668,8 @@ do_literals:
 			*pDst++ = 2;
 
 #if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
-			if (g_cpu_info.can_use_sse41())
+			// Only uses SSE2 ops (_mm_sub_epi8, _mm_loadu/storeu_si128), no SSE4.1 needed.
+			if (g_cpu_info.m_has_sse2)
 			{
 				uint32_t bytes_to_process = w * num_chans, ofs = 0;
 				for (; bytes_to_process >= 16; bytes_to_process -= 16, ofs += 16)
@@ -1701,9 +1758,9 @@ do_literals:
 		}
 
 		const uint32_t PNG_HEADER_SIZE = 58;
-				
+
 		uint32_t out_ofs = PNG_HEADER_SIZE;
-				
+
 		out_buf.resize((out_ofs + (bpl + 1) * h + 7) & ~7);
 
 		uint32_t defl_size = 0;
@@ -1726,7 +1783,7 @@ do_literals:
 		}
 
 		uint32_t zlib_size = defl_size;
-		
+
 		if (!defl_size)
 		{
 			// Dynamic block failed to compress - fall back to uncompressed blocks, filter 0.
@@ -1745,7 +1802,7 @@ do_literals:
 			}
 
 			assert(temp_buf_ofs <= temp_buf.size());
-						
+
 			out_buf.resize(out_ofs + 6 + temp_buf_ofs + ((temp_buf_ofs + 65534) / 65535) * 5);
 
 			uint32_t raw_size = write_raw_block(temp_buf.data(), (uint32_t)temp_buf_ofs, out_buf.data() + out_ofs, (uint32_t)out_buf.size() - out_ofs);
@@ -1758,7 +1815,7 @@ do_literals:
 
 			zlib_size = raw_size;
 		}
-		
+
 		assert((out_ofs + zlib_size) <= out_buf.size());
 
 		out_buf.resize(out_ofs + zlib_size);
@@ -1769,7 +1826,7 @@ do_literals:
 		{
 			static const uint8_t s_color_type[] = { 0x00, 0x00, 0x04, 0x02, 0x06 };
 
-			uint8_t pnghdr[58] = { 
+			uint8_t pnghdr[58] = {
 				0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a,   // PNG sig
 				0x00,0x00,0x00,0x0d, 'I','H','D','R',  // IHDR chunk len, type
 			    0,0,(uint8_t)(w >> 8),(uint8_t)w, // width
@@ -1782,7 +1839,7 @@ do_literals:
 				0, 0, 0, 0, // IHDR crc32
 				0, 0, 0, 5, 'f', 'd', 'E', 'C', 82, 36, 147, 227, FPNG_FDEC_VERSION,   0xE5, 0xAB, 0x62, 0x99, // our custom private, ancillary, do not copy, fdEC chunk
 			  (uint8_t)(idat_len >> 24),(uint8_t)(idat_len >> 16),(uint8_t)(idat_len >> 8),(uint8_t)idat_len, 'I','D','A','T' // IDATA chunk len, type
-			}; 
+			};
 
 			// Compute IHDR CRC32
 			uint32_t c = (uint32_t)fpng_crc32(pnghdr + 12, 17, FPNG_CRC32_INIT);
@@ -1797,10 +1854,10 @@ do_literals:
 
 		// Compute IDAT crc32
 		uint32_t c = (uint32_t)fpng_crc32(out_buf.data() + PNG_HEADER_SIZE - 4, idat_len + 4, FPNG_CRC32_INIT);
-		
+
 		for (i = 0; i < 4; ++i, c <<= 8)
 			(out_buf.data() + out_buf.size() - 16)[i] = (uint8_t)(c >> 24);
-				
+
 		return true;
 	}
 
@@ -1859,7 +1916,7 @@ do_literals:
 			for (uint32_t i = 15; i != 0; i--)
 				if ((j += num_codes[i]) > 1)
 					return false;
-			
+
 			if (j != 1)
 				return false;
 		}
@@ -1896,7 +1953,7 @@ do_literals:
 		return true;
 	}
 
-	static const uint16_t g_run_len3_to_4[259] = 
+	static const uint16_t g_run_len3_to_4[259] =
 	{
 		0,
 		0, 0, 4, 0, 0, 8, 0, 0, 12, 0, 0, 16, 0, 0, 20, 0, 0, 24, 0, 0, 28, 0, 0,
@@ -1911,7 +1968,7 @@ do_literals:
 		256, 0, 0, 260, 0, 0, 264, 0, 0, 268, 0, 0, 272, 0, 0, 276, 0, 0, 280, 0, 0,
 		284, 0, 0, 288, 0, 0, 292, 0, 0, 296, 0, 0, 300, 0, 0, 304, 0, 0, 308, 0, 0,
 		312, 0, 0, 316, 0, 0, 320, 0, 0, 324, 0, 0, 328, 0, 0, 332, 0, 0, 336, 0, 0,
-		340, 0, 0, 
+		340, 0, 0,
 		344,
 	};
 
@@ -1967,7 +2024,7 @@ do_literals:
 
 		GET_BITS(num_dist_codes, 5);
 		num_dist_codes += 1;
-		
+
 		uint32_t total_codes = num_lit_codes + num_dist_codes;
 		if (total_codes > (DEFL_MAX_HUFF_SYMBOLS_0 + DEFL_MAX_HUFF_SYMBOLS_1))
 			return false;
@@ -2002,7 +2059,7 @@ do_literals:
 				return false;
 			SKIP_BITS(sym_len);
 			sym &= 511;
-						
+
 			if (sym <= 15)
 			{
 				// Can't be a fpng Huffman table
@@ -2060,7 +2117,7 @@ do_literals:
 		uint32_t total_valid_distcodes = 0;
 		for (uint32_t i = 0; i < num_dist_codes; i++)
 			total_valid_distcodes += (code_sizes[num_lit_codes + i] == 1);
-		
+
 		// 1 or 2 because the first version of FPNG only issued 1 valid distance code, but that upset wuffs. So we let 1 or 2 through.
 		if ((total_valid_distcodes < 1) || (total_valid_distcodes > 2))
 			return false;
@@ -2074,7 +2131,7 @@ do_literals:
 			if (code_sizes[num_lit_codes + num_chans] != 1)
 				return false;
 		}
-						
+
 		if (!build_decoder_table(num_lit_codes, lit_codesizes, pLit_table))
 			return false;
 
@@ -2105,7 +2162,7 @@ do_literals:
 
 		return true;
 	}
-		
+
 	static bool fpng_pixel_zlib_raw_decompress(
 		const uint8_t* pSrc, uint32_t src_len, uint32_t zlib_len,
 		uint8_t* pDst, uint32_t w, uint32_t h,
@@ -2113,7 +2170,7 @@ do_literals:
 	{
 		assert((src_chans == 3) || (src_chans == 4));
 		assert((dst_chans == 3) || (dst_chans == 4));
-		
+
 		const uint32_t src_bpl = w * src_chans;
 		const uint32_t dst_bpl = w * dst_chans;
 		const uint32_t dst_len = dst_bpl * h;
@@ -2158,7 +2215,7 @@ do_literals:
 					// Check filter type
 					if (c != 0)
 						return false;
-					
+
 					assert(!comp_ofs);
 				}
 				else
@@ -2170,7 +2227,7 @@ do_literals:
 
 						pDst[dst_ofs++] = (uint8_t)c;
 					}
-					
+
 					if (++comp_ofs == src_chans)
 					{
 						if (dst_chans > src_chans)
@@ -2207,7 +2264,7 @@ do_literals:
 
 		return (dst_ofs == dst_len);
 	}
-	
+
 	template<uint32_t dst_comps>
 	static bool fpng_pixel_zlib_decompress_3(
 		const uint8_t* pSrc, uint32_t src_len, uint32_t zlib_len,
@@ -2226,10 +2283,10 @@ do_literals:
 			return false;
 
 		uint32_t src_ofs = 2;
-		
+
 		if ((pSrc[src_ofs] & 6) == 0)
 			return fpng_pixel_zlib_raw_decompress(pSrc, src_len, zlib_len, pDst, w, h, 3, dst_comps);
-		
+
 		if ((src_ofs + 4) > src_len)
 			return false;
 		uint64_t bit_buf = READ_LE32(pSrc + src_ofs);
@@ -2244,7 +2301,7 @@ do_literals:
 		// Must be the final block or it's not valid, and type=2 (dynamic)
 		if ((bfinal != 1) || (btype != 2))
 			return false;
-		
+
 		uint32_t lit_table[FPNG_DECODER_TABLE_SIZE];
 		if (!prepare_dynamic_block(pSrc, src_len, src_ofs, bit_buf_size, bit_buf, lit_table, 3))
 			return false;
@@ -2273,7 +2330,7 @@ do_literals:
 			{
 				assert(bit_buf_size >= FPNG_DECODER_TABLE_BITS);
 				uint32_t lit0_tab = lit_table[bit_buf & (FPNG_DECODER_TABLE_SIZE - 1)];
-				
+
 				uint32_t lit0 = lit0_tab;
 				uint32_t lit0_len = (lit0_tab >> 9) & 15;
 				if (!lit0_len)
@@ -2297,17 +2354,17 @@ do_literals:
 
 						run_len += e;
 					}
-					
+
 					// Skip match distance - it's always the same (3)
 					SKIP_BITS_NE(1);
 
 					// Matches must always be a multiple of 3/4 bytes
 					assert((run_len % 3) == 0);
-																				
+
 					if (dst_comps == 4)
 					{
 						const uint32_t x_ofs_end = x_ofs + g_run_len3_to_4[run_len];
-						
+
 						// Check for valid run lengths
 						if (x_ofs == x_ofs_end)
 							return false;
@@ -2429,7 +2486,7 @@ do_literals:
 					}
 
 					SKIP_BITS(lit2_len);
-					
+
 					// Check for matches
 					if ((lit1 | lit2) & 256)
 						return false;
@@ -2472,7 +2529,7 @@ do_literals:
 					prev_delta_r = (uint8_t)lit0;
 					prev_delta_g = (uint8_t)lit1;
 					prev_delta_b = (uint8_t)lit2;
-										
+
 					// See if we can decode one more pixel.
 					uint32_t spec_next_len0_len = lit2 >> (16 + 9);
 					if ((spec_next_len0_len) && (x_ofs < dst_bpl))
@@ -2506,7 +2563,7 @@ do_literals:
 							// Check for matches
 							if ((lit1 | lit2) & 256)
 								return false;
-					
+
 							if (dst_comps == 4)
 							{
 								if (pPrev_scanline)
@@ -2545,7 +2602,7 @@ do_literals:
 							prev_delta_r = (uint8_t)lit0;
 							prev_delta_g = (uint8_t)lit1;
 							prev_delta_b = (uint8_t)lit2;
-																				
+
 						} // if (lit0 < 256)
 
 					} // if ((spec_next_len0_len) && (x_ofs < bpl))
@@ -2682,7 +2739,7 @@ do_literals:
 					// Matches must always be a multiple of 3/4 bytes
 					if (run_len & 3)
 						return false;
-										
+
 					if (dst_comps == 3)
 					{
 						const uint32_t run_len3 = (run_len >> 2) * 3;
@@ -2802,7 +2859,7 @@ do_literals:
 
 					uint32_t lit3;
 					uint32_t lit3_len = lit2 >> (16 + 9);
-					
+
 					if (lit3_len)
 					{
 						lit3 = (lit2 >> 16);
@@ -2820,7 +2877,7 @@ do_literals:
 
 						SKIP_BITS_NE(lit3_len);
 					}
-										
+
 					// Check for matches
 					if ((lit1 | lit2 | lit3) & 256)
 						return false;
@@ -2858,7 +2915,7 @@ do_literals:
 							pCur_scanline[x_ofs + 2] = (uint8_t)lit2;
 							pCur_scanline[x_ofs + 3] = (uint8_t)lit3;
 						}
-						
+
 						x_ofs += 4;
 					}
 
@@ -2938,12 +2995,12 @@ do_literals:
 			assert(0);
 			return false;
 		}
-				
+
 		width = 0;
 		height = 0;
 		channels_in_file = 0;
 		idat_ofs = 0, idat_len = 0;
-				
+
 		// Ensure the file has at least a minimum possible size
 		if (image_size < (sizeof(s_png_sig) + sizeof(png_ihdr) + sizeof(png_chunk_prefix) + 1 + sizeof(uint32_t) + sizeof(png_iend)))
 			return FPNG_DECODE_FAILED_NOT_PNG;
@@ -2964,7 +3021,7 @@ do_literals:
 
 		width = READ_BE32(&ihdr.m_width);
 		height = READ_BE32(&ihdr.m_height);
-				
+
 		if (!width || !height || (width > FPNG_MAX_SUPPORTED_DIM) || (height > FPNG_MAX_SUPPORTED_DIM))
 			return FPNG_DECODE_FAILED_INVALID_DIMENSIONS;
 
@@ -2985,7 +3042,7 @@ do_literals:
 
 		// Scan all the chunks. Look for one IDAT, IEND, and our custom fdEC chunk that indicates the file was compressed by us. Skip any ancillary chunks.
 		bool found_fdec_chunk = false;
-		
+
 		for (; ; )
 		{
 			const size_t src_ofs = pImage_u8 - static_cast<const uint8_t*>(pImage);
@@ -3074,7 +3131,7 @@ do_literals:
 
 		if ((!found_fdec_chunk) || (!idat_ofs))
 			return FPNG_DECODE_NOT_FPNG;
-		
+
 		return FPNG_DECODE_SUCCESS;
 	}
 
@@ -3101,7 +3158,7 @@ do_literals:
 		int status = fpng_get_info_internal(pImage, image_size, width, height, channels_in_file, idat_ofs, idat_len);
 		if (status)
 			return status;
-				
+
 		const uint64_t mem_needed = (uint64_t)width * height * desired_channels;
 		if (mem_needed > UINT32_MAX)
 			return FPNG_DECODE_FAILED_DIMENSIONS_TOO_LARGE;
@@ -3111,7 +3168,7 @@ do_literals:
 			return FPNG_DECODE_FAILED_DIMENSIONS_TOO_LARGE;
 
 		out.resize(mem_needed);
-		
+
 		const uint8_t* pIDAT_data = static_cast<const uint8_t*>(pImage) + idat_ofs + sizeof(uint32_t) * 2;
 		const uint32_t src_len = image_size - (idat_ofs + sizeof(uint32_t) * 2);
 
@@ -3206,7 +3263,7 @@ extern "C" {
     EXPORT void swapChannelsABGRtoRGBA(unsigned char* pImage, int numPixels) {
         const __m128i shuffleMask = _mm_set_epi8(12, 13, 14, 15, 8, 9, 10, 11, 4, 5, 6, 7, 0, 1, 2, 3);
         int i;
-            for (i = 0; i + 3 < numPixels; i += 4) {
+            for (i = 0; i + 4 <= numPixels; i += 4) {
                 __m128i abgr = _mm_loadu_si128((__m128i*)(pImage + i * 4));
                 __m128i rgba = _mm_shuffle_epi8(abgr, shuffleMask);
                 _mm_storeu_si128((__m128i*)(pImage + i * 4), rgba);
@@ -3227,41 +3284,77 @@ extern "C" {
     }
 
     EXPORT void swapChannelsBGRtoRGB(unsigned char* pImage, int numPixels) {
-        // Ensure numPixels is a multiple of 4 for alignment
-        int numIterations = numPixels / 4;
+        // Swap B<->R for 3bpp pixels.  Process 4 pixels (12 bytes) per SSE iteration,
+        // writing only 12 bytes back to avoid corrupting the next pixel group.
+        // _mm_set_epi8 args go e15..e0; for each 3-byte BGR pixel we swap byte 0<->2.
+        // result[0]=src[2]=R, result[1]=src[1]=G, result[2]=src[0]=B, etc.
+        const __m128i swapMask = _mm_set_epi8(
+            -1, -1, -1, -1,   // bytes 12-15: unused (won't be stored)
+             9, 10, 11,        // pixel 3: B3<->R3
+             6,  7,  8,        // pixel 2: B2<->R2
+             3,  4,  5,        // pixel 1: B1<->R1
+             0,  1,  2);       // pixel 0: e2=0,e1=1,e0=2 => result[0]=src[2]=R0
 
-        // 3 * 4 = 12, so don't shuffle the last 4 bytes
-        const __m128i shuffleMask = _mm_set_epi8( 15, 14, 13, 12, 9, 10, 11, 6, 7, 8, 3, 4, 5, 0, 1, 2 );
-        for (int i = 0; i < numIterations; ++i) {
-            __m128i pixels = _mm_loadu_si128((__m128i*)(pImage + i * 4 * 3));
-            __m128i shuffled = _mm_shuffle_epi8(pixels, shuffleMask);
-            _mm_storeu_si128((__m128i*)(pImage + i * 4 * 3), shuffled);
+        int i = 0;
+        for (; i + 4 <= numPixels; i += 4) {
+            unsigned char* p = pImage + i * 3;
+            __m128i pixels = _mm_loadu_si128((__m128i*)p);
+            __m128i shuffled = _mm_shuffle_epi8(pixels, swapMask);
+            // Store only 12 bytes (4 pixels * 3 bytes) to avoid overwriting next group
+            _mm_storel_epi64((__m128i*)p, shuffled);                           // bytes 0-7
+            *(uint32_t*)(p + 8) = (uint32_t)_mm_extract_epi32(shuffled, 2);   // bytes 8-11
+        }
+
+        // Handle remaining pixels (scalar tail)
+        for (; i < numPixels; ++i) {
+            unsigned char* p = pImage + i * 3;
+            unsigned char tmp = p[0];
+            p[0] = p[2];
+            p[2] = tmp;
         }
     }
 
-    EXPORT ByteArray* fpng_encode_image_to_memory(const void* pImage, uint32_t w, uint32_t h, uint32_t num_chans,  uint32_t flags = 0) {
+    EXPORT ByteArray* fpng_encode_image_to_memory(void* pImage, uint32_t w, uint32_t h, uint32_t num_chans,  uint32_t flags = 0) {
         // Vector frees itself
         std::vector<uint8_t> out_buf;
+        uint32_t numPixels = w * h;
 
-        // 4 channels will arrive as BufferedImage.TYPE_4BYTE_ABGR
-        // 3 channels will arrive as BufferedImage.TYPE_3BYTE_BGR
-        if (num_chans==(uint32_t) 4) {
-            swapChannelsABGRtoRGBA( (unsigned char*) pImage, w * h);
+        // Swap channels in-place to RGBA/RGB, encode, then swap back to restore
+        // the caller's buffer. Two swaps are far cheaper than a full-image copy.
+        // 4 channels arrive as BufferedImage.TYPE_4BYTE_ABGR
+        // 3 channels arrive as BufferedImage.TYPE_3BYTE_BGR
+        if (num_chans == (uint32_t)4) {
+            swapChannelsABGRtoRGBA((unsigned char*)pImage, numPixels);
         } else {
-            swapChannelsBGRtoRGB( (unsigned char*) pImage, w * h);
+            swapChannelsBGRtoRGB((unsigned char*)pImage, numPixels);
         }
 
-        bool result = fpng::fpng_encode_image_to_memory( pImage, w, h, num_chans, out_buf, flags);
+        bool result = fpng::fpng_encode_image_to_memory(pImage, w, h, num_chans, out_buf, flags);
+
+        if (!result) {
+            return nullptr;
+        }
 
         ByteArray* data = (ByteArray*) malloc( sizeof(ByteArray) );
+        if (!data) return nullptr;
         data->size = out_buf.size();
         data->data = (uint8_t*) malloc( out_buf.size() * sizeof(uint8_t) );
+        if (!data->data) { free(data); return nullptr; }
 
         // copy the uint8_t* array
         std::memcpy(data->data, out_buf.data(), out_buf.size());
 
         return data;
     }
+}
+
+extern "C" EXPORT int hasAVX2() {
+#if FPNG_X86_OR_X64_CPU && !FPNG_NO_SSE
+    fpng::g_cpu_info.init();
+    return fpng::g_cpu_info.m_has_avx2 ? 1 : 0;
+#else
+    return 0;
+#endif
 }
 
 /*
