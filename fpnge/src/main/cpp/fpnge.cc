@@ -21,6 +21,25 @@
 #include <string.h>
 #include <vector>
 
+/*
+ * glibc 2.38 compat: GCC 14+ redirects strtol → __isoc23_strtol via macro,
+ * even through C++ standard library headers (<vector>, <algorithm>, etc.).
+ * This creates a GLIBC_2.38 dynamic dependency that breaks on older systems.
+ *
+ * Fix: provide __isoc23_strtol locally, delegating to strtol@GLIBC_2.2.5.
+ * The linker resolves within the .so — no GLIBC_2.38 version tag emitted.
+ */
+#if defined(__linux__) && defined(__GLIBC__) && __GLIBC__ >= 2
+extern "C" {
+    __asm__(".symver __compat_strtol, strtol@GLIBC_2.2.5");
+    extern long int __compat_strtol(const char *nptr, char **endptr, int base);
+
+    long int __isoc23_strtol(const char *nptr, char **endptr, int base) {
+        return __compat_strtol(nptr, endptr, base);
+    }
+}
+#endif
+
 #if defined(_MSC_VER) && !defined(__clang__)
 //#define FORCE_INLINE_LAMBDA [[msvc::forceinline]]
 #define FORCE_INLINE_LAMBDA
