@@ -1,6 +1,6 @@
 /**
  * FPNG-Java is a Java Wrapper around the fast SSE/AVX optimised FPNG encoders.
- * Copyright (C) 2023 Andreas Reichel <andreas@manticore-projects.com>
+ * Copyright (C) 2026 Andreas Reichel <andreas@manticore-projects.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
@@ -33,7 +33,7 @@ class FPNGEncoderTest {
     })
     void encodeTest(String fileName, int channels) throws IOException, InvocationTargetException,
             NoSuchMethodException, IllegalAccessException {
-        Encoder.encoderTest(FPNGEncoder.class, fileName, channels);
+        EncoderBase.encoderTest(FPNGEncoder.class, fileName, channels);
     }
 
     @ParameterizedTest
@@ -43,6 +43,6 @@ class FPNGEncoderTest {
     void encodeTestFailure(String fileName, int channels)
             throws IOException, InvocationTargetException,
             NoSuchMethodException, IllegalAccessException {
-        Encoder.encoderTest(FPNGEncoder.class, fileName, channels);
+        EncoderBase.encoderTest(FPNGEncoder.class, fileName, channels);
     }
 }

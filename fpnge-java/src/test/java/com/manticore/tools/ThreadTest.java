@@ -1,6 +1,6 @@
 /**
  * FPNG-Java is a Java Wrapper around the fast SSE/AVX optimised FPNG encoders.
- * Copyright (C) 2023 Andreas Reichel <andreas@manticore-projects.com>
+ * Copyright (C) 2026 Andreas Reichel <andreas@manticore-projects.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
@@ -33,7 +33,7 @@ public class ThreadTest {
     @Test
     @Disabled
     void testParallelEncoding() throws InterruptedException, IOException {
-        BufferedImage image = Encoder.readImageFromClasspath(FPNGE.class, "example");
+        BufferedImage image = EncoderBase.readImageFromClasspath(FPNGE.class, "example");
         ExecutorService executorService = Executors.newFixedThreadPool(8);
         for (int i = 0; i < 100000; i++) {
             final int j = i;

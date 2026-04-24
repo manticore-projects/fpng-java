@@ -15,8 +15,8 @@ The appropriate encoder is selected **automatically at runtime** via a `hasAVX2(
 [Maven](#maven-artifacts) and [Gradle](#gradle-artifacts) artifacts are available, please see [below](#maven-artifacts).
 
 ```java
-import com.manticore.tools.FPNGEncoder;     // SSE2 encoder (always safe to load)
-import com.manticore.tools.FPNGE;           // AVX2 encoder (only load when supported)
+import com.manticore.tools.FPNGEncoder23;     // SSE2 encoder (always safe to load)
+import com.manticore.tools.FPNGE23;           // AVX2 encoder (only load when supported)
 
 // Automatic runtime selection
 FPNGEncoder.ENCODER.fpng_init();

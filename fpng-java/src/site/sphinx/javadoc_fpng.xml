@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <root>
     <package name="com.manticore.tools">
-        <interface name="FPNGEncoder" qualified="com.manticore.tools.FPNGEncoder" scope="public">
+        <interface name="FPNGEncoder" qualified="com.manticore.tools.FPNGEncoder23" scope="public">
             <interface qualified="com.manticore.tools.Encoder"/>
             <method name="encode" signature="byte[] (java.awt.image.BufferedImage,int,int)" qualified="encode" scope="public" abstract="false" final="false" native="false" synchronized="false" static="true" varArgs="false">
                 <parameter name="image">
@@ -58,7 +58,7 @@
                 </annotation>
             </method>
             <field name="ENCODER" qualified="ENCODER" scope="public" volatile="false" transient="false" static="true" final="true">
-                <type qualified="com.manticore.tools.FPNGEncoder"/>
+                <type qualified="com.manticore.tools.FPNGEncoder23"/>
                 <constant></constant>
             </field>
         </interface>

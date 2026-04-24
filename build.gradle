@@ -68,7 +68,7 @@ allprojects {
         format 'misc', {
             // define the files to apply `misc` to
             target '*.rst', '*.md', '.gitignore'
-            ignoreErrorForPath('CHANGELOG.md')
+            suppressLintsFor { path = 'CHANGELOG.md' }
 
             // define the steps to apply to those files
             trimTrailingWhitespace()
@@ -86,6 +86,9 @@ allprojects {
     }
 
     pmd {
+        // later versions throw NPE
+        toolVersion = '7.17.0'
+
         consoleOutput = true
         // clear the ruleset in order to use configured rules only
         ruleSets = []
@@ -96,6 +99,7 @@ allprojects {
     checkstyle {
         //sourceSets = [sourceSets.main, sourceSets.test]
         configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+        configDirectory = rootProject.file('config/checkstyle')
     }
 
     tasks.withType(Checkstyle).configureEach {

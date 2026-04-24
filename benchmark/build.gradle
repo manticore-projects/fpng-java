@@ -1,3 +1,5 @@
+import com.manticore.benchmark.JmhReportTask
+
 plugins {
     id 'java-library'
     id "me.champeau.jmh" version "latest.release"
@@ -12,6 +14,7 @@ repositories {
 dependencies {
     jmh project(":fpng-java")
     jmh project(":fpnge-java")
+    jmh project(":fpng-java23")
     jmh 'com.pngencoder:pngencoder:+'
     jmh files('lib/pngencoder-1.jar')
 
@@ -20,6 +23,28 @@ dependencies {
     jmh 'net.java.dev.jna:jna-platform:+'
     jmh 'org.openjdk.jmh:jmh-core:+'
     jmh 'org.openjdk.jmh:jmh-generator-annprocess:+'
+}
+
+tasks.register('jmhReport', JmhReportTask) {
+    description = 'Generates an HTML report from JMH benchmark results.'
+    group = 'benchmark'
+
+    // Point at the JMH output JSON
+    resultsFile = layout.projectDirectory.file('build/results/jmh/results.json')
+    reportFile  = layout.projectDirectory.file('build/reports/jmh/benchmark-report.html')
+
+    mustRunAfter tasks.named('jmh')
+
+    doLast {
+        copy {
+            from(layout.buildDirectory.file("reports/jmh/benchmark-report.html").get().asFile)
+            into rootProject.layout.projectDirectory.dir("src/site/sphinx/_static").asFile
+        }
+    }
+}
+
+tasks.named("jmh") {
+    finalizedBy(tasks.named('jmhReport'))
 }
 
 jmh {
@@ -31,7 +56,7 @@ jmh {
     fork = 1
     benchmarkMode = ['avgt']
     //jvmArgs = ['-XX:+UseSerialGC','-Xms512M','-Xmx2G','-XX:+UseStringDeduplication', '-XX:-UseJVMCICompiler', '-XX:-EnableJVMCI']
-    jvmArgs = ['-XX:+UseSerialGC', '-Xms512M', '-Xmx2G', '-XX:+UseStringDeduplication']
+    jvmArgs = ['-XX:+UseSerialGC', '-Xms512M', '-Xmx2G', '-XX:+UseStringDeduplication', '--enable-native-access=ALL-UNNAMED']
     //profilers = ['perf']
 
     //includes = ['FPNGEBenchmark']
@@ -40,11 +65,16 @@ jmh {
     resultFormat = 'JSON'
 }
 
-jmhRunBytecodeGenerator.dependsOn(':fpng-java:build', ':fpnge-java:build')
+jmhRunBytecodeGenerator.dependsOn(':fpng-java:build', ':fpnge-java:build', ':fpng-java23:build')
 
 java {
     withSourcesJar()
     withJavadocJar()
+
+    // needed for XML-Doclet to work (since Doclet changed again with Java 13)
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(23))
+    }
 }
 
 spotless {

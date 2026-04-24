@@ -7,7 +7,8 @@ repositories {
 }
 
 library {
-    linkage = [Linkage.STATIC, Linkage.SHARED]
+    // CAREFUL: adding STATIC will alter the FROM of the `copyNativeLib` task below
+    linkage = [Linkage.SHARED]
     targetMachines = [
             machines.linux.x86_64,
             machines.windows.x86, machines.windows.x86_64,
@@ -45,14 +46,19 @@ tasks.withType(LinkSharedLibrary).configureEach {
     }
 }
 
-tasks.register('copyNativeLib', Copy) {
+tasks.register('copyNativeLib') {
     dependsOn assemble
-    //from './build/lib/main/debug/shared'
-    from './build/lib/main/release/shared'
-    into '../fpng-java/build/resources/main/lib/fpng'
-
-    // the native library file extensions on different platforms
-    include '**/*.dll', '**/*.so', '**/*.dylib'
-    duplicatesStrategy=DuplicatesStrategy.INCLUDE
+    doLast {
+        def targets = [
+                '../fpng-java/build/resources/main/lib/fpng',
+                '../fpng-java23/build/resources/main/lib/fpng'
+        ]
+        targets.each { dest ->
+            project.copy {
+                from './build/lib/main/release'
+                include '**/stripped/*.so', '**/stripped/*.dylib', '**/*.dll'
+                into dest
+            }
+        }
+    }
 }
-

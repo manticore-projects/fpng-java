@@ -656,4 +656,7 @@
     <!-- DetailAST API requires large number of methods -->
     <suppress checks="MethodCount"
               files="[\\/]src[\\/]main[\\/]java[\\/]com[\\/]puppycrawl[\\/]tools[\\/]checkstyle[\\/]DetailAstImpl.java"/>
+
+    <suppress checks="ConstantName" files="FPNGE23\.java"/>
+    <suppress checks="ConstantName" files="FPNGEncoder23\.java"/>
 </suppressions>

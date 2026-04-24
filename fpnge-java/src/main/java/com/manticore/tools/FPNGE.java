@@ -1,6 +1,6 @@
 /**
  * FPNG-Java is a Java Wrapper around the fast SSE/AVX optimised FPNG encoders.
- * Copyright (C) 2023 Andreas Reichel <andreas@manticore-projects.com>
+ * Copyright (C) 2026 Andreas Reichel <andreas@manticore-projects.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
@@ -26,7 +26,7 @@ import java.awt.image.BufferedImage;
 import java.util.Arrays;
 import java.util.List;
 
-public interface FPNGE extends Encoder {
+public interface FPNGE extends Encoder, EncoderBase {
     FPNGE ENCODER = (FPNGE) Encoder.load(FPNGE.class, "fpnge");
 
     static byte[] encode(BufferedImage image, int numberOfChannels, int comp_level) {
@@ -37,7 +37,7 @@ public interface FPNGE extends Encoder {
          * 32bpp .PNG file.
          */
 
-        byte[] rgbaArray = com.manticore.tools.Encoder.getRGBABytes(image, numberOfChannels);
+        byte[] rgbaArray = EncoderBase.getRGBABytes(image, numberOfChannels);
 
         NativeLong bytes_per_channel = new NativeLong(1);
         NativeLong num_chan = new NativeLong(numberOfChannels);

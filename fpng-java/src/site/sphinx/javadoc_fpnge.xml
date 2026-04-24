@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <root>
     <package name="com.manticore.tools">
-        <interface name="FPNGE" qualified="com.manticore.tools.FPNGE" scope="public">
+        <interface name="FPNGE" qualified="com.manticore.tools.FPNGE23" scope="public">
             <interface qualified="com.manticore.tools.Encoder"/>
             <method name="encode" signature="byte[] (java.awt.image.BufferedImage,int,int)" qualified="encode" scope="public" abstract="false" final="false" native="false" synchronized="false" static="true" varArgs="false">
                 <parameter name="image">
@@ -15,7 +15,7 @@
                 </parameter>
                 <return qualified="byte[]" dimension="1"/>
             </method>
-            <method name="FPNGEEncode1" signature="com.manticore.tools.FPNGE.CharArray (com.sun.jna.NativeLong,com.sun.jna.NativeLong,byte[],com.sun.jna.NativeLong,com.sun.jna.NativeLong,int)" qualified="FPNGEEncode1" scope="public" abstract="true" final="false" native="false" synchronized="false" static="false" varArgs="false">
+            <method name="FPNGEEncode1" signature="com.manticore.tools.FPNGE23.CharArray (com.sun.jna.NativeLong,com.sun.jna.NativeLong,byte[],com.sun.jna.NativeLong,com.sun.jna.NativeLong,int)" qualified="FPNGEEncode1" scope="public" abstract="true" final="false" native="false" synchronized="false" static="false" varArgs="false">
                 <parameter name="bytes_per_channel">
                     <type qualified="com.sun.jna.NativeLong"/>
                 </parameter>
@@ -34,7 +34,7 @@
                 <parameter name="comp_level">
                     <type qualified="int"/>
                 </parameter>
-                <return qualified="com.manticore.tools.FPNGE.CharArray"/>
+                <return qualified="com.manticore.tools.FPNGE23.CharArray"/>
                 <annotation name="SuppressWarnings" qualified="java.lang.SuppressWarnings">
                     <argument name="value" primitive="false" array="true">
                         <type qualified="java.lang.String[]" dimension="1"/>
@@ -43,11 +43,11 @@
                 </annotation>
             </method>
             <field name="ENCODER" qualified="ENCODER" scope="public" volatile="false" transient="false" static="true" final="true">
-                <type qualified="com.manticore.tools.FPNGE"/>
+                <type qualified="com.manticore.tools.FPNGE23"/>
                 <constant></constant>
             </field>
         </interface>
-        <class name="CharArray" qualified="com.manticore.tools.FPNGE.CharArray" scope="public" abstract="false" error="false" exception="false" externalizable="false" serializable="false">
+        <class name="CharArray" qualified="com.manticore.tools.FPNGE23.CharArray" scope="public" abstract="false" error="false" exception="false" externalizable="false" serializable="false">
             <class qualified="com.sun.jna.Structure"/>
             <constructor name="CharArray" signature="void ()" qualified="&lt;init&gt;" scope="public" final="false" native="false" synchronized="false" static="false" varArgs="false"/>
             <method name="getFieldOrder" signature="java.util.List&lt;java.lang.String&gt; ()" qualified="getFieldOrder" scope="protected" abstract="false" final="false" native="false" synchronized="false" static="false" varArgs="false">

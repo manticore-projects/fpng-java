@@ -1,6 +1,6 @@
 /**
  * FPNG-Java is a Java Wrapper around the fast SSE/AVX optimised FPNG encoders.
- * Copyright (C) 2023 Andreas Reichel <andreas@manticore-projects.com>
+ * Copyright (C) 2026 Andreas Reichel <andreas@manticore-projects.com>
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published
@@ -23,39 +23,22 @@ import com.sun.jna.NativeLong;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 
-import javax.imageio.ImageIO;
-import java.awt.Graphics;
 import java.awt.image.BufferedImage;
-import java.awt.image.DataBufferByte;
 import java.io.File;
-import java.io.FileOutputStream;
 import java.io.IOException;
-import java.io.InputStream;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.net.URL;
-import java.nio.file.FileSystem;
-import java.nio.file.FileSystems;
-import java.nio.file.FileVisitOption;
-import java.nio.file.FileVisitResult;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.SimpleFileVisitor;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Arrays;
-import java.util.EnumSet;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.logging.Logger;
 
 interface Encoder extends Library {
-    Logger LOGGER = Logger.getLogger(Encoder.class.getName());
+    @Deprecated
+    Logger LOGGER = EncoderBase.LOGGER;
+
     String OS_NAME = System
             .getProperty("os.name")
             .toLowerCase(Locale.US)
@@ -65,161 +48,59 @@ interface Encoder extends Library {
             .toLowerCase(Locale.US)
             .replaceAll("[^a-z0-9]+", "");
 
-    String TMP_FOLDER = System.getProperty("java.io.tmpdir");
+    @Deprecated
+    String TMP_FOLDER = EncoderBase.TMP_FOLDER;
 
-    // if we can't use the SSE or AVX byte shuffling, we could fall back to Java based byte swapping
+    @Deprecated
     static void swapIntBytes(byte[] bytes) {
-        assert bytes.length % 4 == 0;
-        for (int i = 0; i < bytes.length; i += 4) {
-            // swap 0 and 3
-            byte tmp = bytes[i];
-            bytes[i] = bytes[i + 3];
-            bytes[i + 3] = tmp;
-            // swap 1 and 2
-            byte tmp2 = bytes[i + 1];
-            bytes[i + 1] = bytes[i + 2];
-            bytes[i + 2] = tmp2;
-        }
+        EncoderBase.swapIntBytes(bytes);
     }
 
-
-    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels)
+    @Deprecated
+    static void encoderTest(Class<? extends EncoderBase> encoderClass, String fileName,
+            int channels)
             throws IOException, NoSuchMethodException, InvocationTargetException,
             IllegalAccessException {
-        encoderTest(encoderClass, fileName, channels, 5, true);
+        EncoderBase.encoderTest(encoderClass, fileName, channels, 5, true);
     }
 
-    static void encoderTest(Class<? extends Encoder> encoderClass, String fileName, int channels,
+    @Deprecated
+    static void encoderTest(Class<? extends EncoderBase> encoderClass, String fileName,
+            int channels,
             int compressLevel, boolean writeTempFiles) throws IOException, NoSuchMethodException,
             InvocationTargetException, IllegalAccessException {
-        BufferedImage image = readImageFromClasspath(encoderClass, fileName);
-
-        Method encode = encoderClass.getMethod("encode", BufferedImage.class, int.class, int.class);
-        byte[] data = (byte[]) encode.invoke(null, image, channels, compressLevel);
-
-        if (writeTempFiles) {
-            File file = File.createTempFile(
-                    encoderClass.getSimpleName() + "_" + fileName + "_" + channels + "_", ".png");
-            FileOutputStream fileOutputStream = new FileOutputStream(file);
-            fileOutputStream.write(data);
-            fileOutputStream.flush();
-            fileOutputStream.close();
-        }
+        EncoderBase.encoderTest(encoderClass, fileName, channels, compressLevel, writeTempFiles);
     }
 
-    // copy a folder with all its content from inside the JAR to a filesystem destination (e.g.
-    // '/tmp/)
+    @Deprecated
     static void extractFilesFromURI(URI uri, String target) throws IOException {
-        LOGGER.info("Extract native libraries from: " + uri.toASCIIString());
-
-        // see:
-        // https://docs.oracle.com/javase/7/docs/technotes/guides/io/fsp/zipfilesystemprovider.html
-        // create the file system before we can access the path within the zip
-        // this will fail when not having a zip
-        Map<String, String> env = new HashMap<>();
-        env.put("create", "true");
-        try (FileSystem ignored = FileSystems.newFileSystem(uri, env)) {
-            extract(uri, target);
-        } catch (Exception ex) {
-            extract(uri, target);
-        }
+        EncoderBase.extractFilesFromURI(uri, target);
     }
 
+    @Deprecated
     static void extract(URI uri, String target) throws IOException {
-        Path uriPath = Paths.get(uri);
-        File targetFolder = new File(target);
-        targetFolder.deleteOnExit();
-
-        Files.walkFileTree(uriPath, EnumSet.noneOf(FileVisitOption.class), Integer.MAX_VALUE,
-                new SimpleFileVisitor<Path>() {
-                    @Override
-                    public FileVisitResult visitFile(Path file, BasicFileAttributes attrs)
-                            throws IOException {
-
-                        Files.copy(file,
-                                targetFolder.toPath().resolve(uriPath.relativize(file).toString()),
-                                StandardCopyOption.REPLACE_EXISTING);
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                    @Override
-                    public FileVisitResult visitFileFailed(Path file, IOException exc)
-                            throws IOException {
-                        return FileVisitResult.CONTINUE;
-                    }
-
-                    @Override
-                    public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs)
-                            throws IOException {
-                        Files.createDirectories(
-                                targetFolder.toPath().resolve(uriPath.relativize(dir).toString()));
-                        return FileVisitResult.CONTINUE;
-                    }
-                });
+        EncoderBase.extract(uri, target);
     }
 
-    static BufferedImage readImageFromClasspath(Class<? extends Encoder> encoderClass,
+    @Deprecated
+    static BufferedImage readImageFromClasspath(Class<? extends EncoderBase> encoderClass,
             String fileName) throws IOException {
-
-        // We should be able to read the Image from a Class InputStream directly.
-        // This has been working well on Windows and Linux.
-        // Although it continuously failed on MacOS looking like a specific JDK/OS problem.
-        // Now we copy into a file first trying to mitigate this issue.
-
-        String fileNameWithExtension = fileName + ".png";
-        String resourceStr = "/" + fileNameWithExtension;
-        File destinationFile = new File(TMP_FOLDER, fileNameWithExtension);
-        destinationFile.deleteOnExit();
-
-        try (InputStream is = encoderClass.getResourceAsStream(resourceStr);) {
-            if (is != null) {
-                Files.copy(is, destinationFile.toPath(),
-                        StandardCopyOption.REPLACE_EXISTING);
-            } else {
-                throw new IOException("Could not read image " + resourceStr + " from Class "
-                        + encoderClass.getCanonicalName());
-            }
-
-            // Load the PNG file into a BufferedImage
-            File file = new File(TMP_FOLDER, fileNameWithExtension);
-            if (file.isFile() && file.canRead()) {
-                file.deleteOnExit();
-                return ImageIO.read(file);
-            } else {
-                throw new IOException(
-                        "Could not read image " + fileNameWithExtension
-                                + " from TEMP after extract.");
-            }
-        }
+        return EncoderBase.readImageFromClasspath(encoderClass, fileName);
     }
 
+    @Deprecated
     static byte[] getRGBABytes(BufferedImage image, int channels) {
-        // Convert to Java's native byte-backed format:
-        // 4 channels -> TYPE_4BYTE_ABGR (C side swaps to RGBA)
-        // 3 channels -> TYPE_3BYTE_BGR (C side swaps to RGB)
-        int type = channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR
-                : BufferedImage.TYPE_3BYTE_BGR;
-
-        BufferedImage convertedImage;
-        if (image.getType() == type) {
-            // Already in the right format — skip the redraw entirely
-            convertedImage = image;
-        } else {
-            convertedImage = new BufferedImage(image.getWidth(), image.getHeight(), type);
-            Graphics g = convertedImage.getGraphics();
-            g.drawImage(image, 0, 0, null);
-            g.dispose(); // don't leak the Graphics
-        }
-
-        return ((DataBufferByte) convertedImage.getRaster().getDataBuffer()).getData();
+        return EncoderBase.getRGBABytes(image, channels);
     }
 
+
+    @SuppressWarnings({"PMD.NcssCount"})
     static Object load(Class<? extends Library> clazz, final String libraryName) {
         String resourcePath = "/lib";
         String prefix = "lib";
         String extension = ".so";
         boolean strippedSymbols = true;
-        String targetFolder = TMP_FOLDER + File.separator + libraryName
+        String targetFolder = EncoderBase.TMP_FOLDER + File.separator + libraryName
                 + File.separator;
 
         // clip the prefix
@@ -349,8 +230,9 @@ interface Encoder extends Library {
         return Native.load(name, clazz);
     }
 
+    @Deprecated
     static byte[] encode(BufferedImage image, int numberOfChannels, int flags) {
-        return null;
+        return EncoderBase.encode(image, numberOfChannels, flags);
     }
 
     class ByteArray extends Structure {

@@ -5,6 +5,10 @@
 
 <module name="Checker">
     <module name="SuppressWarningsFilter"/>
+    <module name="SuppressionFilter">
+        <property name="file" value="${config_loc}/suppressions.xml"/>
+        <property name="optional" value="false"/>
+    </module>
     <module name="FileTabCharacter"/>
     <!-- git checkout may change linefeeds on the fly
     <module name="RegexpMultiline">
