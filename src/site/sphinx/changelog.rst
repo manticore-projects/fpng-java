@@ -4,10 +4,47 @@ Changelog
 ************************
 
 
-Latest Changes since |JSQLPARSER_VERSION|
+Version 1.6.1
 =============================================================
 
 
+  * **build: fix upload task**
+    
+    Andreas Reichel, 2026-04-24
+  * **build: fix upload task**
+    
+    Andreas Reichel, 2026-04-24
+  * **Update README.md**
+    
+    manticore-projects, 2026-04-21
+
+Version 1.6.0
+=============================================================
+
+
+  * **feat: Java23 FFM module w/o JNA**
+    
+    Andreas Reichel, 2026-04-24
+  * **fix: resolve glibc 2.38 dependency in libfpnge.so**
+    
+    Andreas Reichel, 2026-03-25
+  * **doc: update README**
+    
+    manticore-projects, 2026-03-22
+
+Version 1.4.1
+=============================================================
+
+
+  * **chore: disable the CI**
+    
+    manticore-projects, 2026-03-22
+  * **chore: disable the CI**
+    
+    manticore-projects, 2026-03-22
+  * **chore: start new version**
+    
+    manticore-projects, 2026-03-22
   * **build: fix publish issues**
     
     manticore-projects, 2026-03-22
