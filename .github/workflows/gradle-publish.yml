@@ -128,7 +128,7 @@ jobs:
 
       - name: Install GPG signing key
         env:
-          GPG_SECRET_KEY: ${{ secrets.GPG_SECRET_KEY }}
+          GPG_SECRET_KEY: ${{ secrets.OSSRH_GPG_SECRET_KEY }}
         run: |
           mkdir -p ~/.gnupg
           chmod 700 ~/.gnupg
