@@ -60,9 +60,9 @@ jobs:
           name: fpng-${{ matrix.os }}
           if-no-files-found: error
           path: |
-            fpng/build/lib/main/release/shared/**/stripped/*.dylib
-            fpng/build/lib/main/release/shared/**/*.dll
-            fpng/build/lib/main/release/shared/**/stripped/*.so
+            fpng/build/lib/main/release/**/stripped/*.dylib
+            fpng/build/lib/main/release/**/*.dll
+            fpng/build/lib/main/release/**/stripped/*.so
 
       - name: Upload FPNGE native artifact
         uses: actions/upload-artifact@v7
@@ -70,9 +70,9 @@ jobs:
           name: fpnge-${{ matrix.os }}
           if-no-files-found: error
           path: |
-            fpnge/build/lib/main/release/shared/**/stripped/*.dylib
-            fpnge/build/lib/main/release/shared/**/*.dll
-            fpnge/build/lib/main/release/shared/**/stripped/*.so
+            fpnge/build/lib/main/release/**/stripped/*.dylib
+            fpnge/build/lib/main/release/**/*.dll
+            fpnge/build/lib/main/release/**/stripped/*.so
 
   # ── Bundle native libs into JARs and publish ──────────────────────
   publish:
