@@ -58,16 +58,12 @@ jobs:
       # Stage each native lib into a flat directory BEFORE upload.
       #
       # Why: upload-artifact@v4+ strips the non-glob prefix and preserves the
-      # sub-hierarchy. A pattern like `fpng/build/lib/main/release/**/stripped/*.so`
-      # ships the artifact with internal paths like `stripped/libfpng.so`, and on
-      # Windows the DLL lands at a different depth entirely. After merge-multiple
-      # on download, libs land in nested subdirectories that neither the jar task
-      # nor JNA looks at.
-      #
-      # By staging into a flat dir and uploading `staging-xxx/*`, the artifact
-      # contains just the bare library file. After download with merge-multiple,
-      # all three platforms' libs land flat at the exact JAR-resource path
-      # that JNA expects: lib/<name>/{libxxx.so,libxxx.dylib,xxx.dll}.
+      # sub-hierarchy. Globbing directly from Gradle's build dir would ship
+      # artifacts with internal paths like `stripped/libfpng.so`, which after
+      # download land in nested subdirectories that neither the jar task nor
+      # JNA looks at. Staging flat + uploading `staging-xxx/*` puts the bare
+      # library file at the artifact root, so merge-multiple on download
+      # assembles all three platforms' libs flat.
       - name: Stage FPNG native lib
         shell: bash
         run: |
@@ -127,37 +123,46 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      # Download pre-built native libs from ALL platforms BEFORE any Gradle runs.
-      # Because we staged uploads flat, files land flat at
-      # <project>-java/build/resources/main/lib/<project>/{libxxx.so,libxxx.dylib,xxx.dll}.
+      # Download pre-built native libs into src/main/resources — NOT build/.
+      #
+      # Putting them in build/resources/main/ causes Gradle's stale-output
+      # cleanup on processResources to delete them: processResources declares
+      # build/resources/main/ as its output directory, and since the downloaded
+      # files aren't produced by a tracked task, they get wiped before the jar
+      # task runs.
+      #
+      # Putting them in src/main/resources/lib/<name>/ makes them legitimate
+      # source resources. processResources copies them into build/resources/main/
+      # itself, so Gradle tracks them as its own outputs and the jar task picks
+      # them up. The native libs ship at the JAR path `lib/<name>/<file>`.
       - name: Download all FPNG native artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: fpng-*
-          path: fpng-java/build/resources/main/lib/fpng
+          path: fpng-java/src/main/resources/lib/fpng
           merge-multiple: true
 
       - name: Download all FPNGE native artifacts
         uses: actions/download-artifact@v8
         with:
           pattern: fpnge-*
-          path: fpnge-java/build/resources/main/lib/fpnge
+          path: fpnge-java/src/main/resources/lib/fpnge
           merge-multiple: true
 
-      # Verify the download landed exactly one file per platform extension.
-      # Fails loudly if a platform's upload was empty, its glob missed the file,
-      # or a naming drift slipped in — instead of silently publishing an
-      # incomplete JAR.
+      # Verify each project got exactly one file per platform extension.
+      # Fails loudly if a platform upload was empty, missed its glob, or a
+      # naming drift slipped in — instead of silently publishing a JAR with
+      # a missing native.
       - name: Verify native libs
         shell: bash
         run: |
-          echo "── FPNG native libs ──"
-          find fpng-java/build/resources/main/lib -type f | sort
-          echo "── FPNGE native libs ──"
-          find fpnge-java/build/resources/main/lib -type f | sort
+          echo "── FPNG native libs (src/main/resources) ──"
+          find fpng-java/src/main/resources/lib -type f | sort
+          echo "── FPNGE native libs (src/main/resources) ──"
+          find fpnge-java/src/main/resources/lib -type f | sort
 
           for name in fpng fpnge; do
-            dir="${name}-java/build/resources/main/lib/${name}"
+            dir="${name}-java/src/main/resources/lib/${name}"
             for ext in so dylib dll; do
               count=$(find "$dir" -maxdepth 1 -type f -name "*.${ext}" | wc -l)
               if [ "$count" -ne 1 ]; then
@@ -185,9 +190,12 @@ jobs:
           printf '%s\n' "$GPG_SECRET_KEY" | gpg --batch --import
           gpg --export-secret-keys -o ~/.gnupg/secring.gpg
 
-      # Skip copyNativeLib — native libs are already in place from artifact download.
-      # Without -x, compileJava triggers copyNativeLib -> :fpng:assemble -> C++ build,
-      # which overwrites the multi-platform artifacts with linux-only libs.
+      # Skip copyNativeLib — native libs are already in place under
+      # src/main/resources/ from artifact download, and processResources will
+      # copy them into build/resources/main/ for us. Without -x, compileJava
+      # triggers copyNativeLib -> :fpng:assemble -> C++ build, which on the
+      # Linux publish runner would overwrite our multi-platform artifacts
+      # with a linux-only .so.
       - name: Publish to GitHub Packages and Maven Central
         run: >-
           ./gradlew
@@ -200,6 +208,20 @@ jobs:
         env:
           USERNAME: ${{ github.actor }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Post-publish sanity check: dump the contents of the built JARs so a
+      # human glancing at the workflow log can confirm the native libs are in
+      # there. If these show only .class files, something silently ate the
+      # natives and the published artifact is broken.
+      - name: Inspect built JARs
+        shell: bash
+        run: |
+          for name in fpng fpnge; do
+            jar="$(find ${name}-java/build/libs -name "${name}-java-*.jar" \
+                   ! -name '*-sources.jar' ! -name '*-javadoc.jar' | head -1)"
+            echo "── ${jar} ──"
+            unzip -l "$jar" | grep -E 'lib/|\.(so|dylib|dll)$' || echo "WARNING: no native libs found in $jar"
+          done
 
   # ── Integration test against published artifacts ──────────────────
   # Expiration: The macos-15-intel label works until August 2027. After that, GitHub drops x86_64 macOS runners entirely.
