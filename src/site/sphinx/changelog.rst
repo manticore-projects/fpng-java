@@ -4,6 +4,36 @@ Changelog
 ************************
 
 
+Version 1.6.4
+=============================================================
+
+
+  * **build: release 1.6.4, fix the MacOS architecture and enforce Intel**
+    
+    Andreas Reichel, 2026-04-24
+
+Version 1.6.3
+=============================================================
+
+
+  * **build: release 1.6.3**
+    
+    Andreas Reichel, 2026-04-24
+
+Version 1.6.2
+=============================================================
+
+
+  * **build: release 1.6.2**
+    
+    Andreas Reichel, 2026-04-24
+  * **build: release 1.6.1**
+    
+    Andreas Reichel, 2026-04-24
+  * **build: release 1.6.1**
+    
+    Andreas Reichel, 2026-04-24
+
 Version 1.6.1
 =============================================================
 

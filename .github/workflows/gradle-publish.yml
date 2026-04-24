@@ -55,25 +55,56 @@ jobs:
       - name: Build FPNG and FPNGE native libs
         run: ./gradlew :fpng:assemble :fpnge:assemble
 
+      # Stage each native lib into a flat directory BEFORE upload.
+      #
+      # Why: upload-artifact@v4+ strips the non-glob prefix and preserves the
+      # sub-hierarchy. A pattern like `fpng/build/lib/main/release/**/stripped/*.so`
+      # ships the artifact with internal paths like `stripped/libfpng.so`, and on
+      # Windows the DLL lands at a different depth entirely. After merge-multiple
+      # on download, libs land in nested subdirectories that neither the jar task
+      # nor JNA looks at.
+      #
+      # By staging into a flat dir and uploading `staging-xxx/*`, the artifact
+      # contains just the bare library file. After download with merge-multiple,
+      # all three platforms' libs land flat at the exact JAR-resource path
+      # that JNA expects: lib/<name>/{libxxx.so,libxxx.dylib,xxx.dll}.
+      - name: Stage FPNG native lib
+        shell: bash
+        run: |
+          mkdir -p staging-fpng
+          find fpng/build/lib/main/release -type f \( \
+                -path '*/stripped/libfpng.so' \
+             -o -path '*/stripped/libfpng.dylib' \
+             -o -name 'fpng.dll' \
+          \) -exec cp {} staging-fpng/ \;
+          echo "── Staged FPNG ──"
+          ls -la staging-fpng
+
+      - name: Stage FPNGE native lib
+        shell: bash
+        run: |
+          mkdir -p staging-fpnge
+          find fpnge/build/lib/main/release -type f \( \
+                -path '*/stripped/libfpnge.so' \
+             -o -path '*/stripped/libfpnge.dylib' \
+             -o -name 'fpnge.dll' \
+          \) -exec cp {} staging-fpnge/ \;
+          echo "── Staged FPNGE ──"
+          ls -la staging-fpnge
+
       - name: Upload FPNG native artifact
         uses: actions/upload-artifact@v7
         with:
           name: fpng-${{ matrix.os }}
           if-no-files-found: error
-          path: |
-            fpng/build/lib/main/release/**/stripped/*.dylib
-            fpng/build/lib/main/release/**/*.dll
-            fpng/build/lib/main/release/**/stripped/*.so
+          path: staging-fpng/*
 
       - name: Upload FPNGE native artifact
         uses: actions/upload-artifact@v7
         with:
           name: fpnge-${{ matrix.os }}
           if-no-files-found: error
-          path: |
-            fpnge/build/lib/main/release/**/stripped/*.dylib
-            fpnge/build/lib/main/release/**/*.dll
-            fpnge/build/lib/main/release/**/stripped/*.so
+          path: staging-fpnge/*
 
   # ── Bundle native libs into JARs and publish ──────────────────────
   publish:
@@ -97,7 +128,8 @@ jobs:
         uses: gradle/actions/setup-gradle@v6
 
       # Download pre-built native libs from ALL platforms BEFORE any Gradle runs.
-      # This replaces the copyNativeLib task which would only build linux libs.
+      # Because we staged uploads flat, files land flat at
+      # <project>-java/build/resources/main/lib/<project>/{libxxx.so,libxxx.dylib,xxx.dll}.
       - name: Download all FPNG native artifacts
         uses: actions/download-artifact@v8
         with:
@@ -112,12 +144,29 @@ jobs:
           path: fpnge-java/build/resources/main/lib/fpnge
           merge-multiple: true
 
+      # Verify the download landed exactly one file per platform extension.
+      # Fails loudly if a platform's upload was empty, its glob missed the file,
+      # or a naming drift slipped in — instead of silently publishing an
+      # incomplete JAR.
       - name: Verify native libs
+        shell: bash
         run: |
           echo "── FPNG native libs ──"
           find fpng-java/build/resources/main/lib -type f | sort
           echo "── FPNGE native libs ──"
           find fpnge-java/build/resources/main/lib -type f | sort
+
+          for name in fpng fpnge; do
+            dir="${name}-java/build/resources/main/lib/${name}"
+            for ext in so dylib dll; do
+              count=$(find "$dir" -maxdepth 1 -type f -name "*.${ext}" | wc -l)
+              if [ "$count" -ne 1 ]; then
+                echo "ERROR: expected exactly 1 .${ext} file in ${dir}, found ${count}"
+                exit 1
+              fi
+            done
+          done
+          echo "── All six native libs present (fpng + fpnge × so/dylib/dll) ──"
 
       - name: Install Gradle properties
         env:

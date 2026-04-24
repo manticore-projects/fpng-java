@@ -2,6 +2,21 @@
 
 Changelog of fpng-java.
 
+## 1.6.4 (2026-04-24)
+
+### Other changes
+
+
+## 1.6.3 (2026-04-24)
+
+### Other changes
+
+
+## 1.6.2 (2026-04-24)
+
+### Other changes
+
+
 ## 1.6.1 (2026-04-24)
 
 ### Other changes
