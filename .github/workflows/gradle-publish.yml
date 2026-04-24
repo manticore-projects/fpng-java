@@ -31,12 +31,13 @@ jobs:
         run: ./gradlew check -x :maven-test:check
 
   # ── Build native libs on each platform ────────────────────────────
+  # Expiration: The macos-15-intel label works until August 2027. After that, GitHub drops x86_64 macOS runners entirely.
   build-native:
     name: Native (${{ matrix.os }})
     needs: ci
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ ubuntu-latest, windows-latest, macos-15-intel ]
     runs-on: ${{ matrix.os }}
 
     steps:
@@ -152,13 +153,14 @@ jobs:
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   # ── Integration test against published artifacts ──────────────────
+  # Expiration: The macos-15-intel label works until August 2027. After that, GitHub drops x86_64 macOS runners entirely.
   test:
     name: Integration test (${{ matrix.os }})
     needs: publish
     continue-on-error: true
     strategy:
       matrix:
-        os: [ ubuntu-latest, windows-latest, macos-latest ]
+        os: [ ubuntu-latest, windows-latest, macos-15-intel ]
     runs-on: ${{ matrix.os }}
 
     steps:
