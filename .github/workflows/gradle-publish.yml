@@ -202,6 +202,7 @@ jobs:
           :encoder-java:publish
           :fpng-java:publish
           :fpnge-java:publish
+          :fpng-java23:publish
           closeAndReleaseSonatypeStagingRepository
           -x :fpng:copyNativeLib
           -x :fpnge:copyNativeLib
