@@ -46,12 +46,18 @@ tasks.withType(LinkSharedLibrary).configureEach {
     }
 }
 
+// Local-dev convenience: copies this platform's native lib directly into the
+// consumer projects' build/resources/main/. Wired into the consumers via
+// `compileJava.dependsOn { ':fpng:copyNativeLib' }` so that a developer who
+// runs `./gradlew :fpng-java:test` on their machine gets their platform's
+// .so/.dylib/.dll without any extra steps.
 tasks.register('copyNativeLib') {
     dependsOn assemble
     doLast {
+        def libName = project.name  // 'fpng' here, 'fpnge' in the sibling project
         def targets = [
-                '../fpng-java/build/resources/main/lib/fpng',
-                '../fpng-java23/build/resources/main/lib/fpng'
+                "../fpng-java/build/resources/main/lib/${libName}",
+                "../fpng-java23/build/resources/main/lib/${libName}"
         ]
         targets.each { dest ->
             project.copy {
@@ -61,4 +67,29 @@ tasks.register('copyNativeLib') {
             }
         }
     }
+}
+
+// CI staging: produces a self-contained directory at
+// build/native-jar-staging/<os>/<arch>/[stripped/]<file> matching the layout
+// EncoderBase expects under lib/<libName>/ in the JAR. The CI workflow runs
+// this on each platform, uploads the result as an artifact, and merges all
+// three trees on the publish runner.
+//
+// We just preserve cpp-library's natural <os>/<arch>/[stripped/]<file>
+// hierarchy from build/lib/main/release/. Filtering keeps only the stripped
+// release variant on Linux/macOS, the .dll on Windows, and drops debug
+// artifacts (.lib/.exp/.pdb).
+tasks.register('stageNativeLibForJar', Sync) {
+    description = 'Stage native lib for inclusion in the *-java JAR (CI use).'
+    dependsOn assemble
+
+    def libName = project.name  // 'fpng' here, 'fpnge' in the sibling project
+
+    from(layout.buildDirectory.dir('lib/main/release')) {
+        include "**/${libName}.dll"
+        include "**/stripped/lib${libName}.so"
+        include "**/stripped/lib${libName}.dylib"
+    }
+
+    into layout.buildDirectory.dir('native-jar-staging')
 }

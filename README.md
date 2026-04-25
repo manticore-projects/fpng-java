@@ -15,8 +15,8 @@ The appropriate encoder is selected **automatically at runtime** via a `hasAVX2(
 [Maven](#maven-artifacts) and [Gradle](#gradle-artifacts) artifacts are available, please see [below](#maven-artifacts).
 
 ```java
-import com.manticore.tools.FPNGEncoder23;     // SSE2 encoder (always safe to load)
-import com.manticore.tools.FPNGE23;           // AVX2 encoder (only load when supported)
+import com.manticore.tools.FPNGEncoder;     // SSE2 encoder (always safe to load)
+import com.manticore.tools.FPNGE;           // AVX2 encoder (only load when supported)
 
 // Automatic runtime selection
 FPNGEncoder.ENCODER.fpng_init();
@@ -30,7 +30,7 @@ if (useAVX2) {
 }
 ```
 
-There are 7 projects included:
+There are 8 projects included:
 
 - `encoder-java` is an abstract base class for loading the native libraries, byte arrays and tests
 - `fpng` is the C++ source from [FPNG](https://github.com/richgel999/fpng) with an additional C wrapper (SSE2)
@@ -39,6 +39,7 @@ There are 7 projects included:
 - `fpnge-java` provides the Java `FPNGE` encoder, depending on `fpnge` and `JNA`
 - `benchmark` are optional JMH based performance tests
 - `maven-test` is a minimal Java project stub for testing the Maven dependencies and the native libs on various OS after publishing
+- `fpng-java23` used Java23 FFM contains both `FPNG` and `FPNGE` (without need for JNA)
 
 The following Gradle task will compile the native libraries with `-O3 -march=x86-64 -mtune=generic` and wrap them into JARs via JNA.
 
@@ -48,7 +49,7 @@ cd fpng-java
 gradle clean assemble
 ```
 
-The artifacts will be written to `fpng-java/build/libs/fpng-java-1.4.1.jar` and `fpnge-java/build/libs/fpnge-java-1.4.1.jar`.
+The artifacts will be written to `fpng-java/build/libs/fpng-java-1.6.8.jar` and `fpnge-java/build/libs/fpnge-java-1.6.8.jar`.
 
 
 # Benchmarks
@@ -105,13 +106,13 @@ The **compression rates** were set to `MEDIUM` for achieving comparable file-siz
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpng-java</artifactId>
-        <version>[1.4.1,)</version>
+        <version>[1.6.8,)</version>
     </dependency>
     <!-- AVX2 encoder (only load at runtime when hasAVX2() returns true) -->
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpnge-java</artifactId>
-        <version>[1.4.1,)</version>
+        <version>[1.6.8,)</version>
     </dependency>
 </dependencies>
 ```
@@ -124,15 +125,35 @@ repositories {
 }
 dependencies {
     // SSE2 encoder (always safe, also provides hasAVX2() probe)
-    implementation 'com.manticore-projects.tools:fpng-java:[1.4.1,)'
+    implementation 'com.manticore-projects.tools:fpng-java:[1.6.8,)'
     // AVX2 encoder (only load at runtime when hasAVX2() returns true)
-    implementation 'com.manticore-projects.tools:fpnge-java:[1.4.1,)'
+    implementation 'com.manticore-projects.tools:fpnge-java:[1.6.8,)'
 }
 ```
 
-# To Do
+# PGO
 
-- [ ] Add more test images for the "screen capturing" use case, which may yield different outcomes.
-  Right now only photo-realistic images are tested.
-- [ ] Drop slow JNA and replace with a JNI implementation.
-- [ ] Try profiling with PGO.
+```bash
+# Step 1 — Baseline (no PGO). Saves the result file.
+./gradlew :fpnge:clean :benchmark:jmh
+cp benchmark/build/results/jmh/results.json baseline.json
+
+# Step 2 — Build instrumented and run training. JMH numbers from this
+# run are MEANINGLESS (instrumentation overhead makes everything ~30%
+# slower). The run's purpose is just to populate .pgo/fpnge/*.gcda.
+./gradlew :fpnge:clean :benchmark:jmh -PpgoStage=generate
+
+# Step 3 — Sanity check: profile data was actually written.
+find .pgo/fpnge -name '*.gcda' | head
+#   If this is empty, the training didn't reach the instrumented lib.
+#   Most likely cause: pgoStage flag wasn't propagated to the C++ build.
+#   STOP HERE if empty -- step 4 will fail with the GradleException.
+
+# Step 4 — Build PGO-optimized and run the actual measurement.
+./gradlew :fpnge:clean :benchmark:jmh -PpgoStage=use
+cp benchmark/build/results/jmh/results.json pgo.json
+
+# Step 5 — Compare the two JSON files. Quick eyeball:
+diff <(jq '.[].primaryMetric.score' baseline.json) \
+     <(jq '.[].primaryMetric.score' pgo.json)
+```

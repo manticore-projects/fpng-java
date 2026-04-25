@@ -1,4 +1,6 @@
+import com.manticore.benchmark.JmhParetoReportTask
 import com.manticore.benchmark.JmhReportTask
+import org.gradle.internal.os.OperatingSystem
 
 plugins {
     id 'java-library'
@@ -25,6 +27,33 @@ dependencies {
     jmh 'org.openjdk.jmh:jmh-generator-annprocess:+'
 }
 
+// EncoderBenchmark.java currently writes its size CSV into the system tmpdir.
+// We resolve the same path at Gradle config time so the task input matches.
+// If you'd prefer a stable per-build location, change EncoderBenchmark.java
+// to read a system property (e.g. -Dbenchmark.sizesFile=...) and configure
+// the JMH JVM args accordingly — see the optional snippet at the bottom.
+def sizesCsvPath = "${System.getProperty('java.io.tmpdir')}/EncoderBenchmark.csv"
+
+tasks.register('jmhParetoReport', JmhParetoReportTask) {
+    description = 'Render speed/size Pareto frontier from JMH results + size CSV'
+    group = 'verification'
+
+    resultsFile = layout.projectDirectory.file('build/results/jmh/results.json')
+    sizesFile   = layout.projectDirectory.file(sizesCsvPath)
+    reportFile  = layout.projectDirectory.file('build/reports/jmh/benchmark-pareto.html')
+
+    mustRunAfter tasks.named('jmh')
+
+    // Optional: copy the report into the Sphinx static dir, mirroring what
+    // jmhReport already does. Comment out if you don't publish via Sphinx.
+    doLast {
+        copy {
+            from reportFile
+            into rootProject.layout.projectDirectory.dir('src/site/sphinx/_static')
+        }
+    }
+}
+
 tasks.register('jmhReport', JmhReportTask) {
     description = 'Generates an HTML report from JMH benchmark results.'
     group = 'benchmark'
@@ -45,27 +74,130 @@ tasks.register('jmhReport', JmhReportTask) {
 
 tasks.named("jmh") {
     finalizedBy(tasks.named('jmhReport'))
+    finalizedBy(tasks.named('jmhParetoReport'))
 }
 
 jmh {
     timeUnit = 'ms' // Output time unit. Available time units are: [m, s, ms, us, ns].
     verbosity = 'NORMAL' // Verbosity mode. Available modes are: [SILENT, NORMAL, EXTRA]
     warmup = '3s' // Time to spend at each warmup iteration.
-    warmupIterations = 2
-    iterations = 3
+    warmupIterations = 1
+    iterations = 2
     fork = 1
     benchmarkMode = ['avgt']
     //jvmArgs = ['-XX:+UseSerialGC','-Xms512M','-Xmx2G','-XX:+UseStringDeduplication', '-XX:-UseJVMCICompiler', '-XX:-EnableJVMCI']
     jvmArgs = ['-XX:+UseSerialGC', '-Xms512M', '-Xmx2G', '-XX:+UseStringDeduplication', '--enable-native-access=ALL-UNNAMED']
-    //profilers = ['perf']
 
-    //includes = ['FPNGEBenchmark']
+    // sudo sysctl -w kernel.perf_event_paranoid=1
+    // sudo sysctl -w kernel.kptr_restrict=0
+    // profilers = ['async:libPath=/opt/async-profiler/lib/libasyncProfiler.so;output=flamegraph;dir=build/profile;event=cpu']
+
+    // includes = ['FPNGE23Benchmark']
     excludes = ['ByteBufferBenchmark']
 
     resultFormat = 'JSON'
 }
 
 jmhRunBytecodeGenerator.dependsOn(':fpng-java:build', ':fpnge-java:build', ':fpng-java23:build')
+
+// === CPU tuning for stable benchmark results (Linux + AMD only) ======
+//
+// Disables boost, disables SMT, and pins the governor to 'performance'
+// before jmh runs; restores the previous state afterwards (even if jmh
+// fails). The goal is repeatable numbers, not maximum throughput --
+// turbo and SMT both add variance that swamps small performance deltas
+// (e.g. PGO 3-8% wins).
+//
+// Requires passwordless sudo for three commands. Add to
+// /etc/sudoers.d/benchmark (run `sudo visudo -f /etc/sudoers.d/benchmark`):
+//
+//   <user> ALL=(root) NOPASSWD: /usr/bin/tee /sys/devices/system/cpu/cpufreq/boost
+//   <user> ALL=(root) NOPASSWD: /usr/bin/tee /sys/devices/system/cpu/smt/control
+//   <user> ALL=(root) NOPASSWD: /usr/bin/cpupower frequency-set -g *
+//
+// Opt out for a single run with:  ./gradlew jmh -PskipCpuTuning
+//
+// Caveat: if you SIGINT the benchmark (Ctrl+C), the finalizer does not
+// reliably run. Restore manually with `./gradlew restoreCpuDefaults`
+// or reboot (kernel resets all three settings at boot).
+
+def isAmdLinux = OperatingSystem.current().linux && new File('/proc/cpuinfo').with {
+    it.exists() && it.text.contains('AuthenticAMD')
+}
+
+def skipCpuTuning = providers.gradleProperty('skipCpuTuning').isPresent()
+
+// Shared state between tune and restore. Populated at tune-time from the
+// actual sysfs values, so restore puts the system back exactly as it was
+// rather than hardcoding assumed defaults.
+def cpuState = [:]
+
+def readSysfs = { String path ->
+    def f = new File(path)
+    return f.exists() ? f.text.trim() : null
+}
+
+tasks.register('tuneCpuForBenchmark') {
+    description = 'Pin CPU to a stable state for repeatable benchmarking (Linux + AMD).'
+    group = 'benchmark'
+
+    onlyIf { isAmdLinux && !skipCpuTuning }
+
+    doLast {
+        // Capture current state first so restoreCpuDefaults can roll back.
+        cpuState.boost = readSysfs('/sys/devices/system/cpu/cpufreq/boost')
+        cpuState.smt = readSysfs('/sys/devices/system/cpu/smt/control')
+        cpuState.governor = readSysfs('/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor')
+
+        logger.lifecycle("CPU state before tuning: boost=${cpuState.boost}, " +
+                "smt=${cpuState.smt}, governor=${cpuState.governor}")
+
+        // Apply tuning. `echo X | sudo tee <path>` is the canonical way to
+        // write a root-owned sysfs file without needing a full root shell.
+        exec { commandLine 'sh', '-c', 'echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost' }
+        exec { commandLine 'sh', '-c', 'echo off | sudo tee /sys/devices/system/cpu/smt/control' }
+        exec { commandLine 'sudo', 'cpupower', 'frequency-set', '-g', 'performance' }
+
+        logger.lifecycle('CPU tuned: boost=0, smt=off, governor=performance')
+    }
+}
+
+tasks.register('restoreCpuDefaults') {
+    description = 'Restore CPU state captured by tuneCpuForBenchmark.'
+    group = 'benchmark'
+
+    // Only run if tune actually ran (cpuState populated). If tune was
+    // skipped -- wrong platform, -PskipCpuTuning, or tune itself failed
+    // before capture -- there's nothing to restore.
+    onlyIf { isAmdLinux && !skipCpuTuning && cpuState.boost != null }
+
+    doLast {
+        logger.lifecycle("Restoring CPU: boost=${cpuState.boost}, " +
+                "smt=${cpuState.smt}, governor=${cpuState.governor}")
+
+        // Each restore is independently guarded so a single failure doesn't
+        // leave the system half-tuned. Warn rather than fail the build --
+        // the benchmark result is already in hand at this point.
+        [
+                ['sh', '-c', "echo ${cpuState.boost} | sudo tee /sys/devices/system/cpu/cpufreq/boost"],
+                ['sh', '-c', "echo ${cpuState.smt} | sudo tee /sys/devices/system/cpu/smt/control"],
+                ['sudo', 'cpupower', 'frequency-set', '-g', cpuState.governor]
+        ].each { cmd ->
+            try {
+                exec { commandLine cmd }
+            } catch (Exception e) {
+                logger.warn("Failed to restore with ${cmd}: ${e.message}")
+            }
+        }
+    }
+}
+
+tasks.named('jmh').configure {
+    dependsOn 'tuneCpuForBenchmark'
+    finalizedBy 'restoreCpuDefaults'
+}
+
+// === End CPU tuning =================================================
 
 java {
     withSourcesJar()
@@ -78,10 +210,10 @@ java {
 }
 
 spotless {
-        java {
-            leadingTabsToSpaces(4)
-            eclipse().configFile(  rootProject.file('config/formatter/eclipse-java-google-style.xml') )
-        }
+    java {
+        leadingTabsToSpaces(4)
+        eclipse().configFile(  rootProject.file('config/formatter/eclipse-java-google-style.xml') )
+    }
 }
 
 spotbugsMain {
@@ -105,4 +237,3 @@ tasks.withType(Checkstyle).configureEach {
         html.required = true
     }
 }
-

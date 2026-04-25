@@ -27,7 +27,7 @@ public class PNGEncoderBenchmark extends EncoderBenchmark {
                 .withBufferedImage(image)
                 .withMultiThreadedCompressionEnabled(false)
                 .withPredictorEncoding(true)
-                .withCompressionLevel(1)
+                .withCompressionLevel(compressionLevel)
                 .toBytes();
         size = result.length;
         blackhole.consume(result);
@@ -39,7 +39,7 @@ public class PNGEncoderBenchmark extends EncoderBenchmark {
                 .withBufferedImage(image)
                 .withMultiThreadedCompressionEnabled(false)
                 .withPredictorEncoding(false)
-                .withCompressionLevel(1)
+                .withCompressionLevel(compressionLevel)
                 .toBytes();
         size = result.length;
         blackhole.consume(result);

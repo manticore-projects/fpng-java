@@ -21,12 +21,10 @@ import com.manticore.tools.FPNGE23;
 import org.openjdk.jmh.annotations.Benchmark;
 
 public class FPNGE23Benchmark extends EncoderBenchmark {
-    // @Param({"1", "2", "3", "4", "5"})
-    // int compressionLevel;
 
     @Benchmark
     public void encode() {
-        byte[] result = FPNGE23.encode(image, channels, 5);
+        byte[] result = FPNGE23.encode(image, channels, compressionLevel);
         size = result.length;
         blackhole.consume(result);
     }

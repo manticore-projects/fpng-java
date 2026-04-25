@@ -52,93 +52,26 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v6
 
-      - name: Build FPNG and FPNGE native libs
-        run: ./gradlew :fpng:assemble :fpnge:assemble
+      # stageNativeLibForJar (defined in fpng/build.gradle and fpnge/build.gradle)
+      # produces build/native-jar-staging/<os>/<arch>/[stripped/]<file> on each
+      # platform. Preserves cpp-library's natural output structure; no OS
+      # detection in either the Gradle task or this workflow.
+      - name: Build and stage FPNG and FPNGE native libs
+        run: ./gradlew :fpng:stageNativeLibForJar :fpnge:stageNativeLibForJar
 
-      # Stage each native lib at the EXACT path the EncoderBase loader expects
-      # to find inside the JAR:
-      #
-      #   lib/<n>/linux/x86-64/stripped/lib<n>.so
-      #   lib/<n>/macos/x86-64/stripped/lib<n>.dylib
-      #   lib/<n>/windows/x86-64/<n>.dll          (no stripped/ on Windows)
-      #
-      # The loader extracts the entire lib/<n>/ subtree from the JAR to
-      # %TEMP%/<n>/ preserving relative paths, then asks Native.load for the
-      # absolute path constructed from os.name + os.arch. If the JAR resource
-      # tree doesn't contain those exact deep paths, extraction lands the libs
-      # in the wrong place and Native.load fails with "system cannot find the
-      # path specified".
-      #
-      # The OS slug + stripped-segment differ per platform, so we compute them
-      # in a separate step and reference the outputs.
-      - name: Determine OS slug
-        id: slug
-        shell: bash
-        run: |
-          case "${{ matrix.os }}" in
-            ubuntu-*)
-              echo "os=linux"          >> "$GITHUB_OUTPUT"
-              echo "stripped=stripped" >> "$GITHUB_OUTPUT"
-              ;;
-            macos-*)
-              echo "os=macos"          >> "$GITHUB_OUTPUT"
-              echo "stripped=stripped" >> "$GITHUB_OUTPUT"
-              ;;
-            windows-*)
-              echo "os=windows"        >> "$GITHUB_OUTPUT"
-              echo "stripped="         >> "$GITHUB_OUTPUT"
-              ;;
-            *)
-              echo "Unknown OS: ${{ matrix.os }}" >&2
-              exit 1
-              ;;
-          esac
-
-      - name: Stage FPNG native lib
-        shell: bash
-        run: |
-          target="staging-fpng/${{ steps.slug.outputs.os }}/x86-64"
-          [ -n "${{ steps.slug.outputs.stripped }}" ] && target="$target/${{ steps.slug.outputs.stripped }}"
-          mkdir -p "$target"
-          find fpng/build/lib/main/release -type f \( \
-                -path '*/stripped/libfpng.so' \
-             -o -path '*/stripped/libfpng.dylib' \
-             -o -name 'fpng.dll' \
-          \) -exec cp {} "$target/" \;
-          echo "=== Staged FPNG ==="
-          find staging-fpng -type f
-
-      - name: Stage FPNGE native lib
-        shell: bash
-        run: |
-          target="staging-fpnge/${{ steps.slug.outputs.os }}/x86-64"
-          [ -n "${{ steps.slug.outputs.stripped }}" ] && target="$target/${{ steps.slug.outputs.stripped }}"
-          mkdir -p "$target"
-          find fpnge/build/lib/main/release -type f \( \
-                -path '*/stripped/libfpnge.so' \
-             -o -path '*/stripped/libfpnge.dylib' \
-             -o -name 'fpnge.dll' \
-          \) -exec cp {} "$target/" \;
-          echo "=== Staged FPNGE ==="
-          find staging-fpnge -type f
-
-      # Use path: staging-xxx/** (NOT staging-xxx/*) so upload-artifact
-      # preserves the OS/arch directory tree. The non-glob prefix is now
-      # `staging-xxx/` which gets stripped, but the **/<os>/<arch>/...
-      # hierarchy is retained inside the artifact zip.
       - name: Upload FPNG native artifact
         uses: actions/upload-artifact@v7
         with:
           name: fpng-${{ matrix.os }}
           if-no-files-found: error
-          path: staging-fpng/**
+          path: fpng/build/native-jar-staging/**
 
       - name: Upload FPNGE native artifact
         uses: actions/upload-artifact@v7
         with:
           name: fpnge-${{ matrix.os }}
           if-no-files-found: error
-          path: staging-fpnge/**
+          path: fpnge/build/native-jar-staging/**
 
   # === Bundle native libs into JARs and publish ========================
   publish:
@@ -167,9 +100,8 @@ jobs:
       # src/main/resources makes them legitimate source resources that
       # processResources copies through into the JAR.
       #
-      # With staging-xxx/** uploads, merge-multiple here re-assembles the
-      # full <os>/<arch>/[stripped/]<libname> tree from all three platforms
-      # into a single directory.
+      # Each platform's artifact contains <os>/<arch>/[stripped/]<file>.
+      # merge-multiple overlays all three into one tree.
       - name: Download all FPNG native artifacts
         uses: actions/download-artifact@v8
         with:
@@ -184,16 +116,14 @@ jobs:
           path: fpnge-java/src/main/resources/lib/fpnge
           merge-multiple: true
 
-      # Verify each project ended up with all three platform libs at the
-      # exact paths EncoderBase will look for. Fails the build hard if any
-      # is missing -- much better than silently publishing a JAR that
-      # crashes at runtime.
+      # Fail fast if any platform's lib didn't make it. Last line of defense
+      # before signing -- much better than publishing a broken JAR.
       - name: Verify native libs
         shell: bash
         run: |
-          echo "=== FPNG native libs ==="
+          echo "=== FPNG ==="
           find fpng-java/src/main/resources/lib -type f | sort
-          echo "=== FPNGE native libs ==="
+          echo "=== FPNGE ==="
           find fpnge-java/src/main/resources/lib -type f | sort
 
           fail=0
@@ -204,16 +134,12 @@ jobs:
                 "macos/x86-64/stripped/lib${name}.dylib" \
                 "windows/x86-64/${name}.dll"; do
               if [ ! -f "${base}/${expected}" ]; then
-                echo "ERROR: missing ${base}/${expected}"
+                echo "ERROR: missing ${base}/${expected}" >&2
                 fail=1
               fi
             done
           done
-          if [ "$fail" -ne 0 ]; then
-            echo "Aborting publish -- native libs missing or misplaced." >&2
-            exit 1
-          fi
-          echo "=== All six native libs at correct paths ==="
+          [ "$fail" -eq 0 ] || exit 1
 
       - name: Install Gradle properties
         env:
@@ -232,12 +158,9 @@ jobs:
           printf '%s\n' "$GPG_SECRET_KEY" | gpg --batch --import
           gpg --export-secret-keys -o ~/.gnupg/secring.gpg
 
-      # Skip copyNativeLib -- native libs are already in place under
-      # src/main/resources/ from artifact download, and processResources
-      # copies them into build/resources/main/ for the jar task. Without
-      # -x, compileJava triggers copyNativeLib -> :fpng:assemble -> C++
-      # build, which on the Linux publish runner would write a Linux-only
-      # .so over the multi-platform tree we just assembled.
+      # Skip copyNativeLib -- it's a local-dev convenience that on the Linux
+      # publish runner would only produce Linux libs and write them over the
+      # multi-platform tree we just assembled in src/main/resources/.
       - name: Publish to GitHub Packages and Maven Central
         run: >-
           ./gradlew
@@ -252,9 +175,8 @@ jobs:
           USERNAME: ${{ github.actor }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      # Post-publish sanity check: dump the contents of the built JARs so
-      # a human glancing at the workflow log can confirm the native libs
-      # are in there at the right paths.
+      # Diagnostic: dump the JAR contents so a human can eyeball at-a-glance
+      # that the natives shipped at the right paths.
       - name: Inspect built JARs
         shell: bash
         run: |

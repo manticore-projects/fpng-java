@@ -20,7 +20,9 @@ package com.manticore.tools;
 import javax.imageio.ImageIO;
 import java.awt.*;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBuffer;
 import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferInt;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -50,26 +52,78 @@ public interface EncoderBase {
     Logger LOGGER = Logger.getLogger(EncoderBase.class.getName());
     String TMP_FOLDER = System.getProperty("java.io.tmpdir");
 
-    // if we can't use the SSE or AVX byte shuffling, we could fall back to Java based byte swapping
+    /**
+     * Reverse the byte order of every 4-byte group, in place. Equivalent to ABGR &lt;-&gt; RGBA
+     * conversion. Used as a Java-side fallback when the native SSE/AVX shuffler is unavailable.
+     *
+     * Loop body has no internal dependency, so HotSpot's auto-vectorizer will collapse it to
+     * vpshufb-based SIMD on AVX2 capable CPUs.
+     */
     static void swapIntBytes(byte[] bytes) {
         assert bytes.length % 4 == 0;
         for (int i = 0; i < bytes.length; i += 4) {
-            // swap 0 and 3
-            byte tmp = bytes[i];
-            bytes[i] = bytes[i + 3];
-            bytes[i + 3] = tmp;
-            // swap 1 and 2
-            byte tmp2 = bytes[i + 1];
-            bytes[i + 1] = bytes[i + 2];
-            bytes[i + 2] = tmp2;
+            byte b0 = bytes[i];
+            byte b1 = bytes[i + 1];
+            byte b2 = bytes[i + 2];
+            byte b3 = bytes[i + 3];
+            bytes[i] = b3;
+            bytes[i + 1] = b2;
+            bytes[i + 2] = b1;
+            bytes[i + 3] = b0;
         }
+    }
+
+    /**
+     * Convert TYPE_INT_ARGB (0xAARRGGBB) or TYPE_INT_RGB (0x00RRGGBB) to TYPE_4BYTE_ABGR memory
+     * layout (A,B,G,R per pixel).
+     */
+    static byte[] intToAbgrBytes(int[] src, boolean hasAlpha) {
+        byte[] out = new byte[src.length * 4];
+        for (int i = 0; i < src.length; i++) {
+            int p = src[i];
+            int o = i * 4;
+            out[o] = hasAlpha ? (byte) (p >>> 24) : (byte) 0xFF; // A
+            out[o + 1] = (byte) p; // B (low byte)
+            out[o + 2] = (byte) (p >>> 8); // G
+            out[o + 3] = (byte) (p >>> 16); // R (high byte of RGB)
+        }
+        return out;
+    }
+
+    /**
+     * Convert TYPE_INT_RGB (0x00RRGGBB) or TYPE_INT_BGR (0x00BBGGRR) to TYPE_3BYTE_BGR memory
+     * layout (B,G,R per pixel).
+     */
+    static byte[] intToBgrBytes(int[] src, boolean isBgr) {
+        byte[] out = new byte[src.length * 3];
+        if (isBgr) {
+            // 0x00BBGGRR: B is high, R is low
+            for (int i = 0; i < src.length; i++) {
+                int p = src[i];
+                int o = i * 3;
+                out[o] = (byte) (p >>> 16); // B
+                out[o + 1] = (byte) (p >>> 8); // G
+                out[o + 2] = (byte) p; // R
+            }
+        } else {
+            // 0x00RRGGBB: R is high, B is low
+            for (int i = 0; i < src.length; i++) {
+                int p = src[i];
+                int o = i * 3;
+                out[o] = (byte) p; // B
+                out[o + 1] = (byte) (p >>> 8); // G
+                out[o + 2] = (byte) (p >>> 16); // R
+            }
+        }
+        return out;
     }
 
     static void encoderTest(Class<? extends EncoderBase> encoderClass, String fileName,
             int channels)
             throws IOException, NoSuchMethodException, InvocationTargetException,
             IllegalAccessException {
-        encoderTest(encoderClass, fileName, channels, 5, true);
+        encoderTest(encoderClass, fileName, channels, 5,
+                Boolean.getBoolean("encoder.test.writeTempFiles"));
     }
 
     static void encoderTest(Class<? extends EncoderBase> encoderClass, String fileName,
@@ -82,12 +136,11 @@ public interface EncoderBase {
         byte[] data = (byte[]) encode.invoke(null, image, channels, compressLevel);
 
         if (writeTempFiles) {
-            File file = File.createTempFile(
-                    encoderClass.getSimpleName() + "_" + fileName + "_" + channels + "_", ".png");
-            FileOutputStream fileOutputStream = new FileOutputStream(file);
-            fileOutputStream.write(data);
-            fileOutputStream.flush();
-            fileOutputStream.close();
+            String name = encoderClass.getSimpleName() + "_" + fileName + "_" + channels + ".png";
+            File file = new File(System.getProperty("java.io.tmpdir"), name);
+            try (FileOutputStream fileOutputStream = new FileOutputStream(file)) {
+                fileOutputStream.write(data);
+            }
         }
     }
 
@@ -173,24 +226,38 @@ public interface EncoderBase {
     }
 
     static byte[] getRGBABytes(BufferedImage image, int channels) {
-        // Convert to Java's native byte-backed format:
-        // 4 channels -> TYPE_4BYTE_ABGR (C side swaps to RGBA)
-        // 3 channels -> TYPE_3BYTE_BGR (C side swaps to RGB)
-        int type = channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR
+        int targetType = channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR
                 : BufferedImage.TYPE_3BYTE_BGR;
 
-        BufferedImage convertedImage;
-        if (image.getType() == type) {
-            // Already in the right format — skip the redraw entirely
-            convertedImage = image;
-        } else {
-            convertedImage = new BufferedImage(image.getWidth(), image.getHeight(), type);
-            Graphics g = convertedImage.getGraphics();
-            g.drawImage(image, 0, 0, null);
-            g.dispose(); // don't leak the Graphics
+        // Fast path 1: already in target byte-packed format. Zero copy.
+        DataBuffer dataBuffer = image.getRaster().getDataBuffer();
+        if (image.getType() == targetType) {
+            return ((DataBufferByte) dataBuffer).getData();
         }
 
-        return ((DataBufferByte) convertedImage.getRaster().getDataBuffer()).getData();
+        // Fast path 2: int-packed source. JIT-vectorizable conversion to byte-packed
+        // ABGR/BGR — same byte order the C side gets from a TYPE_4BYTE_ABGR / TYPE_3BYTE_BGR
+        // raster, so the existing C SSE/AVX swap pipeline works unchanged.
+        if (dataBuffer instanceof DataBufferInt) {
+            DataBufferInt dbi = (DataBufferInt) dataBuffer;
+            int srcType = image.getType();
+            if (channels == 4 && (srcType == BufferedImage.TYPE_INT_ARGB
+                    || srcType == BufferedImage.TYPE_INT_RGB)) {
+                return intToAbgrBytes(dbi.getData(), srcType == BufferedImage.TYPE_INT_ARGB);
+            }
+            if (channels == 3 && (srcType == BufferedImage.TYPE_INT_RGB
+                    || srcType == BufferedImage.TYPE_INT_BGR)) {
+                return intToBgrBytes(dbi.getData(), srcType == BufferedImage.TYPE_INT_BGR);
+            }
+        }
+
+        // Slow fallback: drawImage for indexed, grayscale, custom rasters.
+        BufferedImage converted =
+                new BufferedImage(image.getWidth(), image.getHeight(), targetType);
+        Graphics g = converted.getGraphics();
+        g.drawImage(image, 0, 0, null);
+        g.dispose();
+        return ((DataBufferByte) converted.getRaster().getDataBuffer()).getData();
     }
 
     @SuppressWarnings({"PMD.NcssCount"})

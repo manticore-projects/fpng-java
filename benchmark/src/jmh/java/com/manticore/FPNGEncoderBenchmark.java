@@ -36,7 +36,7 @@ public class FPNGEncoderBenchmark extends EncoderBenchmark {
 
     @Benchmark
     public void encode() {
-        byte[] result = FPNGEncoder.encode(image, channels, 1);
+        byte[] result = FPNGEncoder.encode(image, channels, compressionLevel);
         size = result.length;
         blackhole.consume(result);
     }

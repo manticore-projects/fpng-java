@@ -20,6 +20,7 @@ package com.manticore.tools;
 import java.awt.*;
 import java.awt.image.BufferedImage;
 import java.awt.image.DataBufferByte;
+import java.awt.image.DataBufferInt;
 import java.lang.foreign.Arena;
 import java.lang.foreign.FunctionDescriptor;
 import java.lang.foreign.Linker;
@@ -39,7 +40,13 @@ public class FPNGE23 implements EncoderBase {
             ValueLayout.JAVA_LONG.withName("size")).withByteAlignment(8);
 
     private static final MethodHandle fpnge_encode1;
+    private static final MethodHandle fpnge_encode2;
     static final MethodHandle native_free;
+
+    private static final MethodHandle INT_ARGB_TO_RGBA;
+    private static final MethodHandle INT_RGB_TO_RGBA;
+    private static final MethodHandle INT_RGB_TO_RGB;
+    private static final MethodHandle INT_BGR_TO_RGB;
 
     static {
         try {
@@ -60,6 +67,15 @@ public class FPNGE23 implements EncoderBase {
                             ValueLayout.JAVA_INT),
                     Linker.Option.critical(true));
 
+            fpnge_encode2 = LINKER.downcallHandle(
+                    LOOKUP.find("FPNGEEncode2").orElseThrow(),
+                    FunctionDescriptor.of(ValueLayout.ADDRESS, // ← pointer return
+                            ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG,
+                            ValueLayout.ADDRESS,
+                            ValueLayout.JAVA_LONG, ValueLayout.JAVA_LONG,
+                            ValueLayout.JAVA_INT),
+                    Linker.Option.critical(true));
+
             LOGGER.info("FPNGE AVX Encoder initialized via FFM from: " + libPathStr);
 
             // Most Linux systems provide 'free' in the default lookup,
@@ -67,7 +83,29 @@ public class FPNGE23 implements EncoderBase {
             // or use the default native linker lookup.
             native_free = LINKER.downcallHandle(
                     LINKER.defaultLookup().find("free").orElseThrow(),
-                    FunctionDescriptor.ofVoid(ValueLayout.ADDRESS));
+                    FunctionDescriptor.ofVoid(ValueLayout.ADDRESS),
+                    Linker.Option.critical(true));
+
+            INT_ARGB_TO_RGBA = LINKER.downcallHandle(
+                    LOOKUP.find("intArgbToRgba").orElseThrow(), // was: LINKER.defaultLookup()
+                    FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                            ValueLayout.JAVA_INT));
+
+            INT_RGB_TO_RGBA = LINKER.downcallHandle(
+                    LOOKUP.find("intRgbToRgba").orElseThrow(), // was: LINKER.defaultLookup()
+                    FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                            ValueLayout.JAVA_INT));
+
+            INT_RGB_TO_RGB = LINKER.downcallHandle(
+                    LOOKUP.find("intRgbToRgb").orElseThrow(), // was: LINKER.defaultLookup()
+                    FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                            ValueLayout.JAVA_INT));
+
+            INT_BGR_TO_RGB = LINKER.downcallHandle(
+                    LOOKUP.find("intBgrToRgb").orElseThrow(), // was: LINKER.defaultLookup()
+                    FunctionDescriptor.ofVoid(ValueLayout.ADDRESS, ValueLayout.ADDRESS,
+                            ValueLayout.JAVA_INT));
+
 
         } catch (Exception e) {
             throw new RuntimeException("Failed to initialize FFM Encoder", e);
@@ -80,16 +118,12 @@ public class FPNGE23 implements EncoderBase {
     public static byte[] encode(BufferedImage image, int channels, int compLevel) {
         int width = image.getWidth();
         int height = image.getHeight();
-        MemorySegment nativeImage = getRGBASegment(image, channels);
+        ImageSegment img = getRGBASegment(image, channels);
+        MethodHandle encodeFn = img.isAlreadyRgba() ? fpnge_encode2 : fpnge_encode1;
 
         try {
-            MemorySegment resultPointer = (MemorySegment) fpnge_encode1.invokeExact(
-                    1L,
-                    (long) channels,
-                    nativeImage,
-                    (long) width,
-                    (long) height,
-                    compLevel);
+            MemorySegment resultPointer = (MemorySegment) encodeFn.invokeExact(
+                    1L, (long) channels, img.data(), (long) width, (long) height, compLevel);
 
             if (resultPointer.equals(MemorySegment.NULL)) {
                 throw new RuntimeException("Native encoding failed: null result");
@@ -116,22 +150,51 @@ public class FPNGE23 implements EncoderBase {
         }
     }
 
-    public static MemorySegment getRGBASegment(BufferedImage image, int channels) {
-        int type = channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR
-                : BufferedImage.TYPE_3BYTE_BGR;
+    public record ImageSegment(MemorySegment data, boolean isAlreadyRgba) {}
 
-        BufferedImage convertedImage = image;
-        if (image.getType() != type) {
-            convertedImage = new BufferedImage(image.getWidth(), image.getHeight(), type);
-            Graphics g = convertedImage.getGraphics();
-            g.drawImage(image, 0, 0, null);
-            g.dispose();
+    public static ImageSegment getRGBASegment(BufferedImage image, int channels) {
+
+        // Fast path 1: byte-packed ABGR/BGR — needs FPNGEEncode1 (swap inside).
+        int targetType = channels == 4 ? BufferedImage.TYPE_4BYTE_ABGR
+                : BufferedImage.TYPE_3BYTE_BGR;
+        if (image.getType() == targetType) {
+            byte[] data = ((DataBufferByte) image.getRaster().getDataBuffer()).getData();
+            return new ImageSegment(MemorySegment.ofArray(data), false);
         }
 
-        byte[] data = ((DataBufferByte) convertedImage.getRaster().getDataBuffer()).getData();
+        // Fast path 2: int-packed → fused C conversion produces RGBA/RGB → FPNGEEncode2.
+        if (image.getRaster().getDataBuffer() instanceof DataBufferInt dbi) {
+            int srcType = image.getType();
+            int n = image.getWidth() * image.getHeight();
+            MemorySegment src = MemorySegment.ofArray(dbi.getData());
 
-        // This wraps the Java array into a MemorySegment WITHOUT copying.
-        // The C code will read directly from the Java Heap.
-        return MemorySegment.ofArray(data);
+            // Allocate output buffer; native off-heap to avoid the FFM copy.
+            int outBytesPerPixel = (channels == 4) ? 4 : 3;
+            MemorySegment dst = Arena.ofAuto().allocate((long) n * outBytesPerPixel);
+
+            try {
+                if (channels == 4 && srcType == BufferedImage.TYPE_INT_ARGB) {
+                    INT_ARGB_TO_RGBA.invokeExact(src, dst, n);
+                } else if (channels == 4 && srcType == BufferedImage.TYPE_INT_RGB) {
+                    INT_RGB_TO_RGBA.invokeExact(src, dst, n);
+                } else if (channels == 3 && srcType == BufferedImage.TYPE_INT_RGB) {
+                    INT_RGB_TO_RGB.invokeExact(src, dst, n);
+                } else if (channels == 3 && srcType == BufferedImage.TYPE_INT_BGR) {
+                    INT_BGR_TO_RGB.invokeExact(src, dst, n);
+                }
+                return new ImageSegment(dst, true); // already in RGBA/RGB layout — FPNGEEncode2
+            } catch (Throwable e) {
+                throw new RuntimeException(e);
+            }
+        }
+
+        // Slow fallback: drawImage for everything else (indexed, gray, custom rasters).
+        BufferedImage converted =
+                new BufferedImage(image.getWidth(), image.getHeight(), targetType);
+        Graphics g = converted.getGraphics();
+        g.drawImage(image, 0, 0, null);
+        g.dispose();
+        byte[] data = ((DataBufferByte) converted.getRaster().getDataBuffer()).getData();
+        return new ImageSegment(MemorySegment.ofArray(data), false);
     }
 }

@@ -1698,6 +1698,213 @@ extern "C" EXPORT void swapChannelsBGRtoRGB(unsigned char* pImage, int numPixels
     }
 }
 
+// =========================================================================
+// Pixel-format conversion: BufferedImage int[] -> RGBA/RGB byte[]
+//
+// These convert int-packed BufferedImage rasters directly to the byte-packed
+// RGBA/RGB layout that FPNGEEncode consumes. They REPLACE the Java-side
+// intToAbgrBytes/intToBgrBytes loops AND fuse the per-pixel byte swap that
+// swapChannelsABGRtoRGBA/swapChannelsBGRtoRGB would otherwise do as a
+// separate pass. One pass over the data instead of two.
+//
+// Java byte order (little-endian x86), per pixel:
+//   TYPE_INT_ARGB (int = 0xAARRGGBB): bytes in memory = [B, G, R, A]
+//   TYPE_INT_RGB  (int = 0x00RRGGBB): bytes in memory = [B, G, R, _]
+//   TYPE_INT_BGR  (int = 0x00BBGGRR): bytes in memory = [R, G, B, _]
+//
+// Output is always [R, G, B, (A)] per pixel — what the encoder wants.
+// =========================================================================
+
+// TYPE_INT_ARGB -> RGBA  (32-bit -> 32-bit, preserves alpha)
+//   in:  [B0 G0 R0 A0  B1 G1 R1 A1 ...]
+//   out: [R0 G0 B0 A0  R1 G1 B1 A1 ...]
+extern "C" EXPORT void intArgbToRgba(const unsigned char* src,
+                                     unsigned char* dst, int numPixels) {
+    // Per-pixel byte permute: out[0]=in[2], out[1]=in[1], out[2]=in[0], out[3]=in[3]
+    const __m128i shuffleMask = _mm_set_epi8(
+        15, 12, 13, 14,   // pixel 3: A3, B3, G3, R3  (mask bytes 15..12)
+        11,  8,  9, 10,   // pixel 2
+         7,  4,  5,  6,   // pixel 1
+         3,  0,  1,  2);  // pixel 0: out bytes 0..3 = in bytes 2,1,0,3
+
+    int i = 0;
+
+#ifdef __AVX2__
+    const __m256i shuffleMask256 = _mm256_broadcastsi128_si256(shuffleMask);
+    for (; i + 8 <= numPixels; i += 8) {
+        __m256i in  = _mm256_loadu_si256((const __m256i*)(src + i * 4));
+        __m256i out = _mm256_shuffle_epi8(in, shuffleMask256);
+        _mm256_storeu_si256((__m256i*)(dst + i * 4), out);
+    }
+#endif
+
+    for (; i + 4 <= numPixels; i += 4) {
+        __m128i in  = _mm_loadu_si128((const __m128i*)(src + i * 4));
+        __m128i out = _mm_shuffle_epi8(in, shuffleMask);
+        _mm_storeu_si128((__m128i*)(dst + i * 4), out);
+    }
+
+    for (; i < numPixels; ++i) {
+        unsigned char b = src[i * 4 + 0];
+        unsigned char g = src[i * 4 + 1];
+        unsigned char r = src[i * 4 + 2];
+        unsigned char a = src[i * 4 + 3];
+        dst[i * 4 + 0] = r;
+        dst[i * 4 + 1] = g;
+        dst[i * 4 + 2] = b;
+        dst[i * 4 + 3] = a;
+    }
+}
+
+// TYPE_INT_RGB -> RGBA  (32-bit -> 32-bit, forces alpha = 0xFF)
+//   in:  [B0 G0 R0 _0  B1 G1 R1 _1 ...]
+//   out: [R0 G0 B0 FF  R1 G1 B1 FF ...]
+extern "C" EXPORT void intRgbToRgba(const unsigned char* src,
+                                    unsigned char* dst, int numPixels) {
+    // Same RGB shuffle as intArgbToRgba; alpha lane will be OR'd to 0xFF below.
+    // Mask byte 3 = 3 picks up the input padding byte (typically 0); the OR
+    // with 0xFF000000 then sets the result alpha to 0xFF regardless.
+    const __m128i shuffleMask = _mm_set_epi8(
+        15, 12, 13, 14,
+        11,  8,  9, 10,
+         7,  4,  5,  6,
+         3,  0,  1,  2);
+    const __m128i alphaFill = _mm_set1_epi32((int)0xFF000000);
+
+    int i = 0;
+
+#ifdef __AVX2__
+    const __m256i shuffleMask256 = _mm256_broadcastsi128_si256(shuffleMask);
+    const __m256i alphaFill256   = _mm256_set1_epi32((int)0xFF000000);
+    for (; i + 8 <= numPixels; i += 8) {
+        __m256i in  = _mm256_loadu_si256((const __m256i*)(src + i * 4));
+        __m256i out = _mm256_shuffle_epi8(in, shuffleMask256);
+                out = _mm256_or_si256(out, alphaFill256);
+        _mm256_storeu_si256((__m256i*)(dst + i * 4), out);
+    }
+#endif
+
+    for (; i + 4 <= numPixels; i += 4) {
+        __m128i in  = _mm_loadu_si128((const __m128i*)(src + i * 4));
+        __m128i out = _mm_shuffle_epi8(in, shuffleMask);
+                out = _mm_or_si128(out, alphaFill);
+        _mm_storeu_si128((__m128i*)(dst + i * 4), out);
+    }
+
+    for (; i < numPixels; ++i) {
+        unsigned char b = src[i * 4 + 0];
+        unsigned char g = src[i * 4 + 1];
+        unsigned char r = src[i * 4 + 2];
+        dst[i * 4 + 0] = r;
+        dst[i * 4 + 1] = g;
+        dst[i * 4 + 2] = b;
+        dst[i * 4 + 3] = 0xFF;
+    }
+}
+
+// TYPE_INT_RGB -> RGB   (32-bit -> 24-bit, byte swap + stride change)
+//   in:  [B0 G0 R0 _0  B1 G1 R1 _1  B2 G2 R2 _2  B3 G3 R3 _3]   (16 bytes / 4 px)
+//   out: [R0 G0 B0     R1 G1 B1     R2 G2 B2     R3 G3 B3   ]   (12 bytes / 4 px)
+extern "C" EXPORT void intRgbToRgb(const unsigned char* src,
+                                   unsigned char* dst, int numPixels) {
+    // Drop the padding byte and swap B<->R within each input pixel.
+    // Mask high 4 bytes set to 0x80 (pshufb writes zero); those bytes will
+    // not be stored anyway thanks to the 12-byte split-store pattern below.
+    const __m128i shuffleMask = _mm_set_epi8(
+        (char)0x80, (char)0x80, (char)0x80, (char)0x80,  // unused
+                12,         13,         14,              // pixel 3: B<->R
+                 8,          9,         10,              // pixel 2
+                 4,          5,          6,              // pixel 1
+                 0,          1,          2);             // pixel 0
+
+    int i = 0;
+
+#ifdef __AVX2__
+    // Two SSE-style 4-pixel groups per iteration (8 pixels = 24 output bytes).
+    // Same split-store trick the existing swapChannelsBGRtoRGB uses to avoid
+    // overshooting the destination buffer.
+    for (; i + 8 <= numPixels; i += 8) {
+        const unsigned char* sp = src + i * 4;
+        unsigned char* dp = dst + i * 3;
+
+        __m128i lo = _mm_loadu_si128((const __m128i*)(sp));
+        __m128i lo_s = _mm_shuffle_epi8(lo, shuffleMask);
+        _mm_storel_epi64((__m128i*)dp, lo_s);                                 // 8 bytes
+        *(uint32_t*)(dp + 8) = (uint32_t)_mm_extract_epi32(lo_s, 2);          // 4 bytes
+
+        __m128i hi = _mm_loadu_si128((const __m128i*)(sp + 16));
+        __m128i hi_s = _mm_shuffle_epi8(hi, shuffleMask);
+        _mm_storel_epi64((__m128i*)(dp + 12), hi_s);                          // 8 bytes
+        *(uint32_t*)(dp + 20) = (uint32_t)_mm_extract_epi32(hi_s, 2);         // 4 bytes
+    }
+#endif
+
+    for (; i + 4 <= numPixels; i += 4) {
+        __m128i in  = _mm_loadu_si128((const __m128i*)(src + i * 4));
+        __m128i out = _mm_shuffle_epi8(in, shuffleMask);
+        _mm_storel_epi64((__m128i*)(dst + i * 3), out);
+        *(uint32_t*)(dst + i * 3 + 8) = (uint32_t)_mm_extract_epi32(out, 2);
+    }
+
+    for (; i < numPixels; ++i) {
+        unsigned char b = src[i * 4 + 0];
+        unsigned char g = src[i * 4 + 1];
+        unsigned char r = src[i * 4 + 2];
+        dst[i * 3 + 0] = r;
+        dst[i * 3 + 1] = g;
+        dst[i * 3 + 2] = b;
+    }
+}
+
+// TYPE_INT_BGR -> RGB   (32-bit -> 24-bit, no byte swap, just stride drop)
+//   in:  [R0 G0 B0 _0  R1 G1 B1 _1  R2 G2 B2 _2  R3 G3 B3 _3]
+//   out: [R0 G0 B0     R1 G1 B1     R2 G2 B2     R3 G3 B3   ]
+extern "C" EXPORT void intBgrToRgb(const unsigned char* src,
+                                   unsigned char* dst, int numPixels) {
+    // Just drop the padding byte; bytes 0,1,2 already in R,G,B order.
+    const __m128i shuffleMask = _mm_set_epi8(
+        (char)0x80, (char)0x80, (char)0x80, (char)0x80,
+                14,         13,         12,
+                10,          9,          8,
+                 6,          5,          4,
+                 2,          1,          0);
+
+    int i = 0;
+
+#ifdef __AVX2__
+    for (; i + 8 <= numPixels; i += 8) {
+        const unsigned char* sp = src + i * 4;
+        unsigned char* dp = dst + i * 3;
+
+        __m128i lo = _mm_loadu_si128((const __m128i*)(sp));
+        __m128i lo_s = _mm_shuffle_epi8(lo, shuffleMask);
+        _mm_storel_epi64((__m128i*)dp, lo_s);
+        *(uint32_t*)(dp + 8) = (uint32_t)_mm_extract_epi32(lo_s, 2);
+
+        __m128i hi = _mm_loadu_si128((const __m128i*)(sp + 16));
+        __m128i hi_s = _mm_shuffle_epi8(hi, shuffleMask);
+        _mm_storel_epi64((__m128i*)(dp + 12), hi_s);
+        *(uint32_t*)(dp + 20) = (uint32_t)_mm_extract_epi32(hi_s, 2);
+    }
+#endif
+
+    for (; i + 4 <= numPixels; i += 4) {
+        __m128i in  = _mm_loadu_si128((const __m128i*)(src + i * 4));
+        __m128i out = _mm_shuffle_epi8(in, shuffleMask);
+        _mm_storel_epi64((__m128i*)(dst + i * 3), out);
+        *(uint32_t*)(dst + i * 3 + 8) = (uint32_t)_mm_extract_epi32(out, 2);
+    }
+
+    for (; i < numPixels; ++i) {
+        unsigned char r = src[i * 4 + 0];
+        unsigned char g = src[i * 4 + 1];
+        unsigned char b = src[i * 4 + 2];
+        dst[i * 3 + 0] = r;
+        dst[i * 3 + 1] = g;
+        dst[i * 3 + 2] = b;
+    }
+}
+
 extern "C" EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_channels,
                               unsigned char* pImage, size_t width, size_t height, int comp_level) {
 
@@ -1711,7 +1918,7 @@ extern "C" EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_c
     // the caller's buffer. Two swaps are far cheaper than a full-image copy.
     // 4 channels arrive as BufferedImage.TYPE_4BYTE_ABGR
     // 3 channels arrive as BufferedImage.TYPE_3BYTE_BGR
-    if (num_channels == (size_t)4) {
+    if (num_channels == (size_t) 4) {
         swapChannelsABGRtoRGBA(pImage, numPixels);
     } else {
         swapChannelsBGRtoRGB(pImage, numPixels);
@@ -1728,5 +1935,25 @@ extern "C" EXPORT CharArray* FPNGEEncode1(size_t bytes_per_channel, size_t num_c
 
 restore:
 
+    return data;
+}
+
+// for already_rgba
+extern "C" EXPORT CharArray* FPNGEEncode2(size_t bytes_per_channel, size_t num_channels,
+                              unsigned char* pImage, size_t width, size_t height, int comp_level) {
+    struct FPNGEOptions options;
+    FPNGEFillOptions(&options, comp_level, FPNGE_CICP_NONE);
+
+    size_t row_stride = width * num_channels * bytes_per_channel;
+
+    // Input is already RGBA/RGB (produced by intArgbToRgba etc.). No swap needed.
+    CharArray* data = (CharArray*) malloc(sizeof(CharArray));
+    if (!data) return nullptr;
+    data->size = FPNGEOutputAllocSize(bytes_per_channel, num_channels, width, height);
+    data->data = (unsigned char*) malloc(data->size);
+    if (!data->data) { free(data); return nullptr; }
+
+    data->size = FPNGEEncode(bytes_per_channel, num_channels, pImage, width, row_stride,
+                             height, data->data, &options);
     return data;
 }

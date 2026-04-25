@@ -18,6 +18,45 @@ library {
     ]
 }
 
+// === Profile-Guided Optimization (PGO) -- GCC/Clang only ===========
+//
+// Three-stage workflow toggled via -PpgoStage=<generate|use>:
+//
+//   * none (default)    Normal build, no PGO flags.
+//   * generate          Compile/link with -fprofile-generate. The resulting
+//                       binary writes .gcda profile data to .pgo/fpnge/
+//                       when exercised. Slower than baseline because of
+//                       instrumentation -- benchmark numbers from this
+//                       stage are meaningless.
+//   * use               Compile/link with -fprofile-use, consuming the
+//                       .gcda data from the previous stage. This is the
+//                       optimized build to measure.
+//
+// Profile data lives at <repo-root>/.pgo/fpnge/ -- intentionally OUTSIDE
+// the build dir so `:fpnge:clean` between stages doesn't wipe it. Add
+// `.pgo/` to .gitignore.
+//
+// Failure mode this guards against: if you compile with -fprofile-use and
+// no .gcda files exist, GCC emits a warning and produces a non-PGO binary
+// silently. The configuration-time check below makes that a hard error.
+
+def pgoStage = providers.gradleProperty('pgoStage').getOrElse('none')
+def pgoDir = rootProject.layout.projectDirectory.dir(".pgo/${project.name}")
+        .asFile.absolutePath
+
+if (pgoStage == 'use') {
+    def gcdaCount = fileTree(dir: pgoDir, include: '**/*.gcda').files.size()
+    if (gcdaCount == 0) {
+        throw new GradleException(
+            "PGO 'use' stage requires .gcda profile data in ${pgoDir}, but none found.\n" +
+            "Run with -PpgoStage=generate first and exercise the library."
+        )
+    }
+    logger.lifecycle("PGO use: consuming ${gcdaCount} .gcda file(s) from ${pgoDir}")
+} else if (pgoStage == 'generate') {
+    logger.lifecycle("PGO generate: profile data will be written to ${pgoDir}")
+}
+
 tasks.withType(CppCompile).configureEach {
     debuggable = false
     optimized = true
@@ -25,7 +64,20 @@ tasks.withType(CppCompile).configureEach {
         if (toolChain in VisualCpp) {
             return ['/LD', '/EHsc', '/Ox', '/std:c++17', '/std:c++17', '/W4', '/arch:AVX2']
         } else {
-            return ['-fPIC', '-O3', '-march=x86-64', '-mtune=generic', '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2', '-mpclmul', '-msse2', '-mavx2', '-fno-strict-aliasing']
+            def base = ['-fPIC', '-O3', '-march=x86-64', '-mtune=generic',
+                        '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2',
+                        '-mpclmul', '-msse2', '-mavx2', '-fno-strict-aliasing']
+            if (pgoStage == 'generate') {
+                return base + ["-fprofile-generate=${pgoDir}"]
+            } else if (pgoStage == 'use') {
+                // -fprofile-correction lets GCC tolerate small mismatches
+                // between profile data and current sources -- e.g. line
+                // numbers shifting from a comment edit. Without it, a tiny
+                // source change after the generate stage forces a full
+                // re-train. With it, profile drift degrades gracefully.
+                return base + ["-fprofile-use=${pgoDir}", '-fprofile-correction']
+            }
+            return base
         }
     }
 }
@@ -33,19 +85,32 @@ tasks.withType(CppCompile).configureEach {
 tasks.withType(LinkSharedLibrary).configureEach {
     linkerArgs.addAll toolChain.map { toolChain ->
         if (toolChain in Gcc) {
-            return ['-lgcov', '--coverage' /*, '-lasan'*/]
+            def base = ['-lgcov' /* , '--coverage' , '-lasan'*/]
+            if (pgoStage == 'generate') {
+                return base + ["-fprofile-generate=${pgoDir}"]
+            } else if (pgoStage == 'use') {
+                return base + ["-fprofile-use=${pgoDir}"]
+            }
+            return base
         } else {
             return []
         }
     }
 }
 
+// Local-dev convenience: copies this platform's native lib directly into the
+// consumer projects' build/resources/main/. Wired into the consumers via
+// `compileJava.dependsOn { ':fpng:copyNativeLib' }` so that a developer who
+// runs `./gradlew :fpng-java:test` on their machine gets their platform's
+// .so/.dylib/.dll without any extra steps.
 tasks.register('copyNativeLib') {
     dependsOn assemble
     doLast {
+        def libName = project.name  // 'fpng' here, 'fpnge' in the sibling project
+
         def targets = [
-                '../fpnge-java/build/resources/main/lib/fpnge',
-                '../fpng-java23/build/resources/main/lib/fpnge'
+                "../fpnge-java/build/resources/main/lib/${libName}",
+                "../fpng-java23/build/resources/main/lib/${libName}"
         ]
         targets.each { dest ->
             project.copy {
@@ -57,3 +122,27 @@ tasks.register('copyNativeLib') {
     }
 }
 
+// CI staging: produces a self-contained directory at
+// build/native-jar-staging/<os>/<arch>/[stripped/]<file> matching the layout
+// EncoderBase expects under lib/<libName>/ in the JAR. The CI workflow runs
+// this on each platform, uploads the result as an artifact, and merges all
+// three trees on the publish runner.
+//
+// We just preserve cpp-library's natural <os>/<arch>/[stripped/]<file>
+// hierarchy from build/lib/main/release/. Filtering keeps only the stripped
+// release variant on Linux/macOS, the .dll on Windows, and drops debug
+// artifacts (.lib/.exp/.pdb).
+tasks.register('stageNativeLibForJar', Sync) {
+    description = 'Stage native lib for inclusion in the *-java JAR (CI use).'
+    dependsOn assemble
+
+    def libName = project.name  // 'fpng' here, 'fpnge' in the sibling project
+
+    from(layout.buildDirectory.dir('lib/main/release')) {
+        include "**/${libName}.dll"
+        include "**/stripped/lib${libName}.so"
+        include "**/stripped/lib${libName}.dylib"
+    }
+
+    into layout.buildDirectory.dir('native-jar-staging')
+}
