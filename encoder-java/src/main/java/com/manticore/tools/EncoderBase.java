@@ -145,11 +145,6 @@ public interface EncoderBase {
     static BufferedImage readImageFromClasspath(Class<? extends EncoderBase> encoderClass,
             String fileName) throws IOException {
 
-        // We should be able to read the Image from a Class InputStream directly.
-        // This has been working well on Windows and Linux.
-        // Although it continuously failed on MacOS looking like a specific JDK/OS problem.
-        // Now we copy into a file first trying to mitigate this issue.
-
         String fileNameWithExtension = fileName + ".png";
         String resourceStr = "/" + fileNameWithExtension;
         File destinationFile = new File(TMP_FOLDER, fileNameWithExtension);
@@ -199,7 +194,7 @@ public interface EncoderBase {
     }
 
     @SuppressWarnings({"PMD.NcssCount"})
-    static String getLibraryFileName(Class<?> clazz, final String libraryName) throws IOException {
+    static String getLibraryFileName(Class<?> clazz, final String libraryName) {
         String OS_NAME = System
                 .getProperty("os.name")
                 .toLowerCase(Locale.US)
@@ -213,8 +208,9 @@ public interface EncoderBase {
         String prefix = "lib";
         String extension = ".so";
         boolean strippedSymbols = true;
-        String targetFolder = TMP_FOLDER + File.separator + libraryName
-                + File.separator;
+        String targetFolder = TMP_FOLDER.endsWith(File.separator)
+                ? TMP_FOLDER + libraryName + File.separator
+                : TMP_FOLDER + File.separator + libraryName + File.separator;
 
         // clip the prefix
         // on Linux, MacOS: libfpng.*
@@ -253,7 +249,7 @@ public interface EncoderBase {
             name += "hpux";
             extension = ".sl";
         } else if (OS_NAME.startsWith("os400")
-                && (OS_NAME.length() <= 5 || !Character.isDigit(OS_NAME.charAt(5)))) {
+                && (OS_NAME.length() == 5 || !Character.isDigit(OS_NAME.charAt(5)))) {
             // Avoid the names such as os4000
             name += "os400";
         } else if (OS_NAME.startsWith("freebsd")) {
