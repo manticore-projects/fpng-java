@@ -4,6 +4,60 @@ Changelog
 ************************
 
 
+Latest Changes since |JAVA_FPNG_VERSION|
+=============================================================
+
+
+  * **fix: JNA `FPNGEncoder` shall observe `flags` (compression level)**
+    
+    Andreas Reichel, 2026-04-25
+
+Version 1.6.9
+=============================================================
+
+
+  * **feat: avoid Java Graphics2D conversions**
+    
+    Andreas Reichel, 2026-04-25
+
+Version 1.6.8
+=============================================================
+
+
+  * **fix: preserve the OS/ARCH subfolders**
+    
+    Andreas Reichel, 2026-04-25
+
+Version 1.6.7
+=============================================================
+
+
+  * **fix: publish the FFM artifact**
+    
+    Andreas Reichel, 2026-04-25
+  * **fix: Windows TEMP folder issue**
+    
+    Andreas Reichel, 2026-04-25
+
+Version 1.6.6
+=============================================================
+
+
+  * **build: release 1.6.6, fix the MacOS architecture and enforce Intel**
+    
+    Andreas Reichel, 2026-04-24
+  * **build: release 1.6.5, fix the MacOS architecture and enforce Intel**
+    
+    Andreas Reichel, 2026-04-24
+
+Version 1.6.5
+=============================================================
+
+
+  * **build: release 1.6.5, fix the MacOS architecture and enforce Intel**
+    
+    Andreas Reichel, 2026-04-24
+
 Version 1.6.4
 =============================================================
 

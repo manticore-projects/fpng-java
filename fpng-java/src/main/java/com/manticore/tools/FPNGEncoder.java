@@ -38,7 +38,7 @@ public interface FPNGEncoder extends Encoder, EncoderBase {
         byte[] rgbaArray = EncoderBase.getRGBABytes(image, numberOfChannels);
 
         ByteArray byteArray = ENCODER.fpng_encode_image_to_memory(rgbaArray, image.getWidth(),
-                image.getHeight(), numberOfChannels, 0);
+                image.getHeight(), numberOfChannels, flags);
         byte[] data = byteArray.data.getByteArray(0, byteArray.size.intValue());
 
         Native.free(Pointer.nativeValue(byteArray.data));

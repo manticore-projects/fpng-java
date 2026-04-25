@@ -2,6 +2,35 @@
 
 Changelog of fpng-java.
 
+## 1.6.9 (2026-04-25)
+
+### Features
+
+-  avoid Java Graphics2D conversions ([0e7b8](https://github.com/manticore-projects/fpng-java/commit/0e7b8aa31b72203) Andreas Reichel)
+
+## 1.6.8 (2026-04-25)
+
+### Bug Fixes
+
+-  preserve the OS/ARCH subfolders ([71e86](https://github.com/manticore-projects/fpng-java/commit/71e86cbc368dd03) Andreas Reichel)
+
+## 1.6.7 (2026-04-25)
+
+### Bug Fixes
+
+-  publish the FFM artifact ([6903f](https://github.com/manticore-projects/fpng-java/commit/6903f43707f321a) Andreas Reichel)
+-  Windows TEMP folder issue ([8b541](https://github.com/manticore-projects/fpng-java/commit/8b541a98975db44) Andreas Reichel)
+
+## 1.6.6 (2026-04-24)
+
+### Other changes
+
+
+## 1.6.5 (2026-04-24)
+
+### Other changes
+
+
 ## 1.6.4 (2026-04-24)
 
 ### Other changes
