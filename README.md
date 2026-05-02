@@ -6,7 +6,7 @@ Java Wrappers for three native, SIMD-optimised PNG encoders:
 - **FPNGe** (AVX2) — Google's AVX2-accelerated variant of FPNG
 - **ZPNG** (zlib-ng) — best compression ratio for **screen content** (UI screenshots, dashboards, remote-desktop frames); uses zlib-ng's full deflate implementation with NEON/AVX2 acceleration
 
-Contains **64-bit binaries for Linux, macOS, and Windows on x86_64, plus Linux and macOS on ARM64**, built and tested natively on each platform via GitHub Runners. Windows ARM64 is not currently supported (blocked on [gradle/gradle#21703](https://github.com/gradle/gradle/issues/21703)).
+Contains **64-bit binaries for Linux, macOS, and Windows on x86_64, plus Linux, Windows and macOS on ARM64**, built and tested natively on each platform via GitHub Runners.
 
 The appropriate FPNG/FPNGe encoder is selected **automatically at runtime** via a `hasAVX2()` CPUID probe — the AVX2 library is never loaded on unsupported hardware. ZPNG is loaded explicitly when its compression characteristics are needed. Channel conversion from Java's native ABGR/BGR format to RGBA/RGB is handled in C via SIMD byte shuffles (NEON on ARM64, SSE/AVX2 on x86).
 
@@ -50,7 +50,7 @@ There are 11 projects included:
 - `fpnge-java` provides the Java `FPNGE` encoder, depending on `fpnge` and `JNA`
 - `zpng` is a [zlib-ng](https://github.com/zlib-ng/zlib-ng) backed encoder optimised for screen content; statically links zlib-ng and supports compression levels 0..9
 - `zpng-java` provides the Java `ZPNG` encoder via JNA
-- `zpng-java23` provides FFM-based wrappers (JDK 22+) for both `FPNG`/`FPNGE` and `ZPNG`
+- `zpng-java23` provides FFM-based wrappers (JDK 22+) for `ZPNG`
 - `benchmark` are optional JMH based performance tests
 - `maven-test` is a minimal Java project stub for testing the Maven dependencies and the native libs on various OS after publishing
 - `fpng-java23` used Java23 FFM contains both `FPNG` and `FPNGE` (without need for JNA)
@@ -75,7 +75,7 @@ cd fpng-java
 gradle clean assemble
 ```
 
-The artifacts will be written to `fpng-java/build/libs/fpng-java-1.6.8.jar` and `fpnge-java/build/libs/fpnge-java-1.6.8.jar`.
+The artifacts will be written to `fpng-java/build/libs/fpng-java-2.0.2.jar` and `fpnge-java/build/libs/fpnge-java-2.0.2.jar`.
 
 
 # Benchmarks
@@ -132,19 +132,19 @@ The **compression rates** were set to `MEDIUM` for achieving comparable file-siz
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpng-java</artifactId>
-        <version>[1.6.8,)</version>
+        <version>[2.0.2,)</version>
     </dependency>
     <!-- AVX2 encoder (only load at runtime when hasAVX2() returns true) -->
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>fpnge-java</artifactId>
-        <version>[1.6.8,)</version>
+        <version>[2.0.2,)</version>
     </dependency>
     <!-- zlib-ng-backed encoder, optimised for screen content -->
     <dependency>
         <groupId>com.manticore-projects.tools</groupId>
         <artifactId>zpng-java</artifactId>
-        <version>[1.6.8,)</version>
+        <version>[2.0.2,)</version>
     </dependency>
 </dependencies>
 ```
@@ -157,11 +157,11 @@ repositories {
 }
 dependencies {
     // SSE2 encoder (always safe, also provides hasAVX2() probe)
-    implementation 'com.manticore-projects.tools:fpng-java:[1.6.8,)'
+    implementation 'com.manticore-projects.tools:fpng-java:[2.0.2,)'
     // AVX2 encoder (only load at runtime when hasAVX2() returns true)
-    implementation 'com.manticore-projects.tools:fpnge-java:[1.6.8,)'
+    implementation 'com.manticore-projects.tools:fpnge-java:[2.0.2,)'
     // zlib-ng-backed encoder, optimised for screen content
-    implementation 'com.manticore-projects.tools:zpng-java:[1.6.8,)'
+    implementation 'com.manticore-projects.tools:zpng-java:[2.0.2,)'
 }
 ```
 
