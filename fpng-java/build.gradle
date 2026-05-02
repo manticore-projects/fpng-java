@@ -28,6 +28,15 @@ dependencies {
     xmlDoclet 'com.manticore-projects.tools:xml-doclet:+'
 }
 
+processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE  // first wins
+
+    from(rootProject.layout.projectDirectory.dir('fpng/build/native-jar-staging')) {
+        into 'lib/fpng'
+    }
+    dependsOn ':fpng:stageNativeLibForJar'
+}
+
 test {
     doFirst {
         copy {
@@ -135,10 +144,6 @@ tasks.register('xmldoc', Javadoc) {
             into rootProject.layout.projectDirectory.dir("src/site/sphinx/_static").asFile
         }
     }
-}
-
-compileJava.dependsOn {
-    ':fpng:copyNativeLib'
 }
 
 publishing {

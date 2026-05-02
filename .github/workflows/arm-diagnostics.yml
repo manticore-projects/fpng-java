@@ -1,0 +1,81 @@
+name: ZPNG ARM64 Diagnostic
+
+# Manual-trigger-only workflow that probes the cpp-library plugin's ARM64
+# toolchain detection on a Linux ARM64 runner. Designed to be run once,
+# its --debug log reveals what target name Gradle actually expects in the
+# toolChains { target('...') } block.
+#
+# After running, look in the log for lines like:
+#   - "Toolchain ... can build for platform 'linux_arm-v8'"
+#   - "Available platforms: ..."
+#   - "Resolving target platform ..."
+# That's where the canonical target-string name appears.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  probe-linux-arm64:
+    name: Probe linux/aarch64 toolchain detection
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK 23
+        uses: actions/setup-java@v5
+        with:
+          java-version: '23'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # Temporarily re-enable ARM64 in build.gradle for this probe. We do it
+      # via a sed because we don't want to commit a config that breaks x86.
+      # Yes, this is hacky — it's a diagnostic workflow, hackiness is fine.
+      - name: Re-enable ARM64 targets in build.gradle for this probe
+        run: |
+          sed -i 's|if (false /\* hostIsArm64 \*/)|if (hostIsArm64)|g' zpng/build.gradle
+          echo "Modified lines:"
+          grep -n "hostIsArm64" zpng/build.gradle
+
+      # Try a few candidate target names. Gradle's cpp-library plugin uses
+      # different naming conventions across versions; we want to find which
+      # one binds. For each variant, we patch build.gradle and try to
+      # configure -- a configuration failure means the name didn't bind, a
+      # success means we found it.
+      - name: Probe candidate target names
+        continue-on-error: true
+        run: |
+          set +e  # don't bail on first failure; we want all results
+
+          for target in linux_arm-64 linux_arm_64 linux_aarch64 linux_arm-v8 linux_arm64; do
+            echo "==============================================================="
+            echo "Trying target name: $target"
+            echo "==============================================================="
+            sed -i "s|target('linux_[a-z0-9_-]*')|target('${target}')|" zpng/build.gradle
+            # Configure-only (no compile) to surface the toolchain bind quickly
+            ./gradlew :zpng:tasks --quiet 2>&1 | grep -i "compileDebugLinuxAarch64\|don't know how" | head -5
+            echo ""
+          done
+
+      - name: Full --debug configure with the most likely target name
+        continue-on-error: true
+        run: |
+          # Reset to linux_arm-64 (Ghidra's working name) then run --debug
+          sed -i "s|target('linux_[a-z0-9_-]*')|target('linux_arm-64')|" zpng/build.gradle
+          ./gradlew :zpng:assemble --debug 2>&1 | tee debug.log | tail -200
+          echo ""
+          echo "=== Filtered: platform / target / toolchain mentions ==="
+          grep -iE "platform|target.*aarch|toolchain.*build|don't know how" debug.log | head -100
+
+      - name: Upload full debug log as artifact
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: arm64-debug-log
+          path: debug.log

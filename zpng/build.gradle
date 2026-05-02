@@ -1,0 +1,533 @@
+// =============================================================================
+// zpng/build.gradle — cmake-driven cross-platform build
+// =============================================================================
+//
+// Replaces the cpp-library plugin entirely. We drive cmake directly via Exec
+// tasks. Each CI runner builds its own native architecture; cross-compilation
+// is supported as a fallback for local development but isn't used in CI.
+//
+// Why we left cpp-library:
+//
+//   The plugin's targetMachines / toolChains DSL doesn't actually support
+//   ARM64 cross-compilation. Both `model { toolChains { gcc(Gcc) {...} } }`
+//   (deprecated software-model DSL) and top-level `toolChains { gcc(Gcc) }`
+//   (the docs-suggested form) silently fail or error with "Cannot create a
+//   Gcc" on Gradle 8.x. See gradle/gradle#17660 (open since 2021) and
+//   gradle-native#989 — the maintainers have effectively de-prioritized the
+//   plugin in favor of an unreleased Declarative Gradle replacement.
+//
+// What this gives us in return:
+//
+//   * Native builds on every CI runner: ubuntu-latest builds linux/x86-64,
+//     ubuntu-24.04-arm builds linux/aarch64, etc. Each binary is built by
+//     its target arch's native compiler running on the target arch — no
+//     cross-toolchain risk.
+//   * cmake's native build path is dead simple: it auto-detects compiler
+//     and arch from the host. Zero Gradle-specific quirks.
+//   * Cross-compile fallback for local dev (-Ptargets=aarch64 from an
+//     x86 machine, with gcc-aarch64-linux-gnu installed). CI doesn't use
+//     this path, but it's there for debugging.
+//   * Forward-compatible with Gradle 9. cpp-library may be removed there;
+//     we have no exposure to that risk.
+
+plugins {
+    id 'base'   // Provides the `assemble` lifecycle task.
+}
+
+// =============================================================================
+// Build diagnostics
+// =============================================================================
+//
+// Prints a self-contained report of the host environment, JVM, and toolchains.
+// Designed to be pasted directly into a bug report. To suppress: -Pquiet=true.
+
+if (providers.gradleProperty('quiet').getOrElse('') != 'true') {
+    def divider = '=' * 78
+
+    logger.lifecycle ""
+    logger.lifecycle divider
+    logger.lifecycle "ZPNG BUILD DIAGNOSTICS"
+    logger.lifecycle divider
+
+    logger.lifecycle "[host]"
+    logger.lifecycle "  os.name      = ${System.getProperty('os.name')}"
+    logger.lifecycle "  os.version   = ${System.getProperty('os.version')}"
+    logger.lifecycle "  os.arch      = ${System.getProperty('os.arch')}"
+    def gradleOs = org.gradle.internal.os.OperatingSystem.current()
+    logger.lifecycle "  Gradle OS    = ${gradleOs.name} (family=${gradleOs.familyName})"
+
+    logger.lifecycle ""
+    logger.lifecycle "[jvm]"
+    logger.lifecycle "  java.version = ${System.getProperty('java.version')}"
+    logger.lifecycle "  java.vendor  = ${System.getProperty('java.vendor')}"
+    logger.lifecycle "  java.home    = ${System.getProperty('java.home')}"
+
+    logger.lifecycle ""
+    logger.lifecycle "[gradle]"
+    logger.lifecycle "  version      = ${gradle.gradleVersion}"
+    logger.lifecycle "  user.home    = ${gradle.gradleUserHomeDir}"
+    logger.lifecycle "  cmdline      = -P${gradle.startParameter.projectProperties}"
+
+    logger.lifecycle ""
+    logger.lifecycle "[compilers on PATH]"
+    ['gcc', 'g++', 'clang', 'clang++',
+     'aarch64-linux-gnu-gcc', 'aarch64-linux-gnu-g++',
+     'cmake'].each { exe ->
+        try {
+            def proc = ['which', exe].execute()
+            proc.waitFor()
+            def found = proc.in.text.trim()
+            if (found) {
+                def ver = ''
+                try {
+                    def vp = [exe, '--version'].execute()
+                    vp.waitFor()
+                    ver = vp.in.text.readLines()[0] ?: ''
+                } catch (ignored) {}
+                logger.lifecycle "  ${exe.padRight(28)} ${found}  ${ver}"
+            }
+        } catch (ignored) {}
+    }
+    if (gradleOs.isWindows()) {
+        ['cl.exe', 'link.exe', 'cmake.exe'].each { exe ->
+            try {
+                def proc = ['where', exe].execute()
+                proc.waitFor()
+                def found = proc.in.text.readLines().find { it } ?: ''
+                if (found) logger.lifecycle "  ${exe.padRight(28)} ${found}"
+            } catch (ignored) {}
+        }
+    }
+
+    logger.lifecycle divider
+    logger.lifecycle ""
+}
+
+// =============================================================================
+// Host detection
+// =============================================================================
+
+def hostOs = org.gradle.internal.os.OperatingSystem.current()
+def hostArchRaw = System.getProperty('os.arch').toLowerCase()
+def hostIsArm64  = (hostArchRaw == 'aarch64' || hostArchRaw == 'arm64')
+def hostIsX86_64 = (hostArchRaw == 'amd64' || hostArchRaw == 'x86_64' || hostArchRaw == 'x86-64')
+
+// =============================================================================
+// Target = host
+// =============================================================================
+//
+// Each runner builds exactly its own native architecture. CI matrix has 6
+// runners (3 OSes x 2 arches), each producing one binary. Two reasons we
+// went this way over cross-compilation from x86 hosts:
+//
+//   1. No cross-toolchain risk: each binary is built by the target arch's
+//      native compiler running on the target arch. If it builds and passes
+//      tests, the produced .so is correct by construction. With cross-
+//      compilation we'd need separate differential testing to confirm the
+//      cross-toolchain's output matches what a native build produces.
+//
+//   2. ARM-host GitHub runners exist and work fine for cmake-based builds.
+//      The cpp-library plugin's broken ARM64 toolchain detection is what
+//      forced us toward cross-compile in earlier attempts; cmake doesn't
+//      have that bug, so we can use the native runners directly.
+//
+// Override via -Ptargets=x86_64,aarch64 if you actually want cross-build
+// (e.g. for local testing without owning ARM hardware). Default below
+// picks just the host's native arch.
+
+def hostTarget = hostIsArm64 ? 'aarch64'
+        : hostIsX86_64 ? 'x86_64'
+        :                 null
+if (hostTarget == null) {
+    throw new GradleException(
+            "Unsupported host arch '${hostArchRaw}'. zpng builds for x86_64 and aarch64 only.")
+}
+
+def targets = providers.gradleProperty('targets')
+        .map { it.split(',').collect { it.trim() } }
+        .getOrElse([hostTarget])
+
+logger.lifecycle "zpng targets: ${targets} (host=${hostOs.name}/${hostArchRaw})"
+
+// =============================================================================
+// Path conventions
+// =============================================================================
+//
+// For each (os, arch) target we produce a layout matching what the workflow's
+// `actions/upload-artifact` glob and `verify` step expect — and what the
+// existing FPNG builds produce. The structure mirrors cpp-library's output
+// exactly so the rest of the toolchain is unchanged:
+//
+//   build/native-jar-staging/<os>/<arch>/[stripped/]<file>
+//
+// where stripped/ holds Release-build, dbg-stripped binaries.
+
+def osPathSegment = hostOs.isWindows() ? 'windows'
+        : hostOs.isMacOsX()  ? 'macos'
+        :                      'linux'
+
+// Translate cmake/host arch names into the path segment names the workflow
+// expects (these match what cpp-library used).
+def archPathSegment = { String tgt ->
+    switch (tgt) {
+        case 'x86_64':  return 'x86-64'
+        case 'aarch64': return 'aarch64'
+        case 'x86':     return 'x86'
+        default:        throw new GradleException("Unknown target arch: ${tgt}")
+    }
+}
+
+def stagingDir = layout.buildDirectory.dir('native-jar-staging')
+
+// =============================================================================
+// Per-target directories and library names
+// =============================================================================
+
+def libNameFor = { ->
+    if (hostOs.isWindows()) return 'zpng.dll'
+    if (hostOs.isMacOsX())  return 'libzpng.dylib'
+    return 'libzpng.so'
+}
+
+def zlibNgVersion        = providers.gradleProperty('zlibNgVersion').getOrElse('2.2.4')
+def zlibNgSourceOverride = providers.gradleProperty('zlibNgSourceDir')
+def zlibNgSrcDir         = layout.buildDirectory.dir('zlib-ng-src')
+
+// =============================================================================
+// zlib-ng source: clone once, reused by every target.
+// =============================================================================
+
+tasks.register('fetchZlibNgSource') {
+    description = 'Clone (or locate) the zlib-ng source tree.'
+    group = 'native'
+
+    // Output: a marker file that says "source tree is ready at <path>"
+    def markerFile = layout.buildDirectory.file('zlib-ng-src.ready')
+    outputs.file(markerFile)
+
+    doLast {
+        def srcDir
+        if (zlibNgSourceOverride.isPresent()) {
+            srcDir = file(zlibNgSourceOverride.get())
+            if (!new File(srcDir, 'CMakeLists.txt').exists()) {
+                throw new GradleException(
+                        "zlibNgSourceDir=${srcDir} does not look like a zlib-ng tree.")
+            }
+            logger.lifecycle "Using zlib-ng source from ${srcDir}"
+        } else {
+            srcDir = zlibNgSrcDir.get().asFile
+            if (!new File(srcDir, 'CMakeLists.txt').exists()) {
+                logger.lifecycle "Cloning zlib-ng ${zlibNgVersion}..."
+                srcDir.parentFile.mkdirs()
+                if (srcDir.exists()) {
+                    delete(srcDir)
+                }
+                exec {
+                    workingDir srcDir.parentFile
+                    commandLine 'git', 'clone', '--quiet', '--depth', '1',
+                            '--branch', zlibNgVersion,
+                            'https://github.com/zlib-ng/zlib-ng.git',
+                            srcDir.name
+                }
+            }
+        }
+        markerFile.get().asFile.text = srcDir.absolutePath
+    }
+}
+
+// Helper: the zlib-ng source directory, evaluated lazily.
+def zlibNgSrcPath = {
+    zlibNgSourceOverride.isPresent()
+            ? file(zlibNgSourceOverride.get()).absolutePath
+            : zlibNgSrcDir.get().asFile.absolutePath
+}
+
+// =============================================================================
+// Per-target zlib-ng build
+// =============================================================================
+//
+// For each requested (os, arch), we build a separate zlib-ng static lib.
+// Cross-compilation is driven by passing CMAKE_C_COMPILER and
+// CMAKE_SYSTEM_PROCESSOR to cmake — no other tooling needed.
+
+def zlibNgBuildTasks = [:]   // target -> task provider
+def zlibNgInstallDirs = [:]  // target -> File (install prefix path)
+
+targets.each { String target ->
+    def installDir = layout.buildDirectory.dir("zlib-ng-install-${target}")
+    zlibNgInstallDirs[target] = installDir
+
+    def task = tasks.register("buildZlibNgStatic_${target}") {
+        description = "Build zlib-ng static lib for ${osPathSegment}/${target}"
+        group = 'native'
+
+        dependsOn 'fetchZlibNgSource'
+
+        def libExt = hostOs.isWindows() ? 'lib' : 'a'
+        def libName = hostOs.isWindows() ? 'zlibstatic-ng.lib' : 'libz-ng.a'
+        outputs.file(installDir.map { it.file("lib/${libName}") })
+        outputs.file(installDir.map { it.file('include/zlib-ng.h') })
+
+        doLast {
+            def srcDir = file(zlibNgSrcPath())
+            def buildDir = layout.buildDirectory.dir("zlib-ng-build-${target}").get().asFile
+            buildDir.mkdirs()
+
+            def cmakeArgs = [
+                    '-DZLIB_COMPAT=OFF',
+                    '-DBUILD_SHARED_LIBS=OFF',
+                    '-DZLIB_ENABLE_TESTS=OFF',
+                    '-DZLIBNG_ENABLE_TESTS=OFF',
+                    '-DWITH_GTEST=OFF',
+                    '-DCMAKE_POSITION_INDEPENDENT_CODE=ON',
+                    '-DCMAKE_BUILD_TYPE=Release',
+                    "-DCMAKE_INSTALL_PREFIX=${installDir.get().asFile.absolutePath}",
+            ]
+
+            // Toolchain selection.
+            //
+            // Default mode: build natively on the host. cmake auto-detects
+            // the system compiler and target arch; no flags needed.
+            //
+            // Cross-compile fallback (only triggers when target != host):
+            //   Linux x86 -> aarch64: use gcc-aarch64-linux-gnu (must be
+            //     installed). Setting CMAKE_C_COMPILER tells cmake to use
+            //     the cross binary; SYSTEM_NAME + SYSTEM_PROCESSOR put cmake
+            //     into cross-compile mode so it doesn't try to run probe
+            //     binaries on the host CPU.
+            //   macOS:  Apple Clang -arch flag via CMAKE_OSX_ARCHITECTURES.
+            //     Setting it explicitly even for native builds is harmless
+            //     and makes the build deterministic.
+            //   Windows: MSVC -A generator-arch. Same idea — explicit even
+            //     for native, harmless either way.
+            if (hostOs.isLinux() && target == 'aarch64' && !hostIsArm64) {
+                cmakeArgs += [
+                        '-DCMAKE_SYSTEM_NAME=Linux',
+                        '-DCMAKE_SYSTEM_PROCESSOR=aarch64',
+                        '-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc',
+                        '-DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++',
+                ]
+            } else if (hostOs.isMacOsX()) {
+                def appleArch = (target == 'aarch64') ? 'arm64' : 'x86_64'
+                cmakeArgs += ["-DCMAKE_OSX_ARCHITECTURES=${appleArch}"]
+            } else if (hostOs.isWindows()) {
+                // Pass via -A for MSVC's generator. Skip on MinGW/non-MSVC
+                // (cmake will pick host arch).
+                def winArch = (target == 'aarch64') ? 'ARM64'
+                        : (target == 'x86')     ? 'Win32'
+                        :                         'x64'
+                cmakeArgs += ['-A', winArch]
+            }
+
+            cmakeArgs << srcDir.absolutePath
+
+            logger.lifecycle "Configuring zlib-ng for ${target}..."
+            exec {
+                workingDir buildDir
+                commandLine(['cmake'] + cmakeArgs)
+            }
+
+            logger.lifecycle "Building zlib-ng for ${target}..."
+            exec {
+                workingDir buildDir
+                commandLine 'cmake', '--build', '.',
+                        '--config', 'Release',
+                        '-j', Runtime.runtime.availableProcessors().toString()
+            }
+            exec {
+                workingDir buildDir
+                commandLine 'cmake', '--install', '.', '--config', 'Release'
+            }
+
+            def libPath = "${installDir.get().asFile.absolutePath}/lib/${libName}"
+            logger.lifecycle "zlib-ng static lib for ${target}: ${libPath}"
+        }
+    }
+    zlibNgBuildTasks[target] = task
+}
+
+// Aggregate alias so the workflow / IDE can request all of them at once.
+tasks.register('buildZlibNgStatic') {
+    description = 'Build zlib-ng static libs for all target architectures.'
+    group = 'native'
+    dependsOn zlibNgBuildTasks.values()
+}
+
+// =============================================================================
+// Per-target zpng build
+// =============================================================================
+
+def zpngBuildTasks = [:]
+def zpngStageTasks = [:]
+
+targets.each { String target ->
+    def archSegment = archPathSegment(target)
+    def buildDir = layout.buildDirectory.dir("zpng-build-${target}")
+    def installDir = layout.buildDirectory.dir("zpng-install-${target}")
+
+    def buildTask = tasks.register("buildZpng_${target}") {
+        description = "Build libzpng for ${osPathSegment}/${target}"
+        group = 'native'
+
+        dependsOn zlibNgBuildTasks[target]
+
+        // Output marker. cmake itself owns deeper dependency tracking; we
+        // just need Gradle to know "this task ran".
+        def libName = libNameFor()
+        def outputLib = installDir.map {
+            it.file(hostOs.isWindows() ? "bin/${libName}" : "lib/${libName}")
+        }
+        outputs.file(outputLib)
+
+        doLast {
+            def projectDir = layout.projectDirectory.asFile
+            def b = buildDir.get().asFile
+            b.mkdirs()
+
+            def cmakeArgs = [
+                    "-DZLIBNG_INSTALL_DIR=${zlibNgInstallDirs[target].get().asFile.absolutePath}",
+                    "-DZPNG_TARGET_ARCH=${target}",
+                    '-DCMAKE_BUILD_TYPE=Release',
+                    "-DCMAKE_INSTALL_PREFIX=${installDir.get().asFile.absolutePath}",
+            ]
+
+            if (hostOs.isLinux() && target == 'aarch64' && !hostIsArm64) {
+                cmakeArgs += [
+                        '-DCMAKE_SYSTEM_NAME=Linux',
+                        '-DCMAKE_SYSTEM_PROCESSOR=aarch64',
+                        '-DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc',
+                        '-DCMAKE_CXX_COMPILER=aarch64-linux-gnu-g++',
+                ]
+            } else if (hostOs.isMacOsX()) {
+                def appleArch = (target == 'aarch64') ? 'arm64' : 'x86_64'
+                cmakeArgs += ["-DCMAKE_OSX_ARCHITECTURES=${appleArch}"]
+            } else if (hostOs.isWindows()) {
+                def winArch = (target == 'aarch64') ? 'ARM64'
+                        : (target == 'x86')     ? 'Win32'
+                        :                         'x64'
+                cmakeArgs += ['-A', winArch]
+            }
+
+            cmakeArgs << projectDir.absolutePath
+
+            logger.lifecycle "Configuring zpng for ${target}..."
+            exec {
+                workingDir b
+                commandLine(['cmake'] + cmakeArgs)
+            }
+
+            logger.lifecycle "Building zpng for ${target}..."
+            exec {
+                workingDir b
+                commandLine 'cmake', '--build', '.',
+                        '--config', 'Release',
+                        '-j', Runtime.runtime.availableProcessors().toString()
+            }
+            exec {
+                workingDir b
+                commandLine 'cmake', '--install', '.', '--config', 'Release'
+            }
+        }
+    }
+    zpngBuildTasks[target] = buildTask
+
+    // Stage the built lib into build/native-jar-staging/<os>/<arch>/[stripped/]<lib>.
+    // Matches the layout cpp-library produced and what the workflow expects.
+    def stageTask = tasks.register("stageZpng_${target}", Copy) {
+        description = "Stage libzpng for ${osPathSegment}/${target} into native-jar-staging."
+        group = 'native'
+
+        dependsOn buildTask
+
+        def libName = libNameFor()
+        def isWin = hostOs.isWindows()
+        def isUnix = !isWin
+
+        // Windows .dll lives under bin/ in cmake's install layout; .so/.dylib
+        // under lib/. Either way we copy to the same staging path.
+        from(installDir.map { it.dir(isWin ? 'bin' : 'lib') }) {
+            include libName
+        }
+
+        // The "stripped/" segment in the path is a remnant of cpp-library's
+        // debug/release variant layout. The verification regexp in the
+        // workflow expects it on Linux/macOS; on Windows there's no
+        // "stripped/" segment for the .dll.
+        def destSubdir = isUnix ? "${osPathSegment}/${archSegment}/stripped"
+                : "${osPathSegment}/${archSegment}"
+        into stagingDir.map { it.dir(destSubdir) }
+
+        // Strip on Linux/macOS (matches cpp-library's "stripped/" naming).
+        // We do it post-install with a separate strip command in the doLast.
+        // Skip on Windows — MSVC produces stripped Release builds by default.
+        if (isUnix) {
+            doLast {
+                def stagedFile = new File(
+                        stagingDir.get().asFile,
+                        "${destSubdir}/${libName}")
+                if (stagedFile.exists()) {
+                    def stripCmd
+                    if (hostOs.isLinux() && target == 'aarch64' && !hostIsArm64) {
+                        stripCmd = 'aarch64-linux-gnu-strip'
+                    } else {
+                        stripCmd = 'strip'
+                    }
+                    logger.lifecycle "Stripping ${stagedFile} with ${stripCmd}..."
+                    exec {
+                        commandLine stripCmd, '-x', stagedFile.absolutePath
+                        ignoreExitValue = true   // strip can fail on non-fatal warnings
+                    }
+                }
+            }
+        }
+    }
+    zpngStageTasks[target] = stageTask
+}
+
+// =============================================================================
+// Aggregate tasks consumed by the workflow
+// =============================================================================
+
+// The workflow runs `:zpng:stageNativeLibForJar`. It expects the staging tree
+// at build/native-jar-staging/. We aggregate all per-target stage tasks here.
+tasks.register('stageNativeLibForJar') {
+    description = 'Stage all built native libs into build/native-jar-staging/.'
+    group = 'native'
+    dependsOn zpngStageTasks.values()
+}
+
+// `assemble` from the base plugin should also produce the natives.
+assemble.dependsOn 'stageNativeLibForJar'
+
+// Local-dev convenience: copy host-built libs directly into the consumer
+// projects' build/resources/main/lib/zpng/ — same pattern fpng/fpnge use.
+//
+// Wired into the consumers via `compileJava.dependsOn { ':zpng:copyNativeLib' }`
+// so a developer who runs `./gradlew :zpng-java:test` on their machine gets
+// their platform's .so/.dylib/.dll into the test classpath without any
+// extra steps.
+//
+// Why build/resources/main and NOT src/main/resources:
+//   - processResources owns build/resources/main/ for runtime classpath
+//     assembly. Dropping native libs here makes them part of the test
+//     classpath for the current dev cycle without touching the VCS-tracked
+//     source tree.
+//   - Writing to src/main/resources/ would dirty the working copy on every
+//     native build and risk accidentally committing a host-specific
+//     binary as if it were source.
+// CI doesn't use this task — CI calls stageNativeLibForJar and the workflow
+// then unpacks artifacts from each runner into the JAR build context.
+tasks.register('copyNativeLib') {
+    dependsOn 'stageNativeLibForJar'
+    doLast {
+        def consumers = ['zpng-java', 'zpng-java23']
+        consumers.each { consumer ->
+            def dest = file("../${consumer}/build/resources/main/lib/zpng")
+            project.copy {
+                from stagingDir
+                into dest
+            }
+            logger.lifecycle "Copied zpng natives into ${dest}"
+        }
+    }
+}

@@ -706,27 +706,72 @@ alignas(SIMD_WIDTH) constexpr int32_t _kMaskVec[] = {0,  0,  0,  0,
 static const uint8_t *kMaskVec =
     reinterpret_cast<const uint8_t *>(_kMaskVec) + SIMD_WIDTH;
 
+// A0: number of bits to emit a single literal of value `v`, using the
+// Huffman code in `table`. Generalises the existing `first16_nbits[0]`
+// path which assumed v == 0.
+static FORCE_INLINE size_t LiteralNbits(const HuffmanTable &table, uint8_t v) {
+  if (v < 16) return table.first16_nbits[v];
+  if (v >= 240) return table.last16_nbits[v - 240];
+  return table.mid_nbits;
+}
+
+// A0: emit a single literal of value `v` to the bit writer.
+static FORCE_INLINE void WriteLiteral(const HuffmanTable &table, uint8_t v,
+                                      BitWriter *__restrict writer) {
+  uint32_t nbits, bits;
+  if (v < 16) {
+    nbits = table.first16_nbits[v];
+    bits = table.first16_bits[v];
+  } else if (v >= 240) {
+    nbits = table.last16_nbits[v - 240];
+    bits = table.last16_bits[v - 240];
+  } else {
+    // mid: bits[v] = mid_lowbits[v >> 4]
+    //              | (kBitReverseNibbleLookup[v & 15] << (mid_nbits - 4))
+    nbits = table.mid_nbits;
+    bits = uint32_t(table.mid_lowbits[(v >> 4) & 0xF]) |
+           (uint32_t(kBitReverseNibbleLookup[v & 0xF])
+            << (table.mid_nbits - 4));
+  }
+  writer->Write(nbits, bits);
+}
+
 template <size_t predictor, typename CB, typename CB_ADL, typename CB_RLE>
 static void
 ProcessRow(size_t bytes_per_line, const unsigned char *current_row_buf,
            const unsigned char *top_buf, const unsigned char *left_buf,
            const unsigned char *topleft_buf, CB &&cb, CB_ADL &&cb_adl,
            CB_RLE &&cb_rle) {
+  // A0: a "run" is now a sequence of bytes all equal to `run_val`, not just
+  // bytes equal to zero. The wire encoding is unchanged: emit one literal of
+  // `run_val`, then (run-1) bytes via length+distance pairs at distance=1.
   size_t run = 0;
+  uint8_t run_val = 0; // meaningful only when run > 0
   size_t i = 0;
   for (; i + SIMD_WIDTH <= bytes_per_line; i += SIMD_WIDTH) {
     auto pdata = PredictVec<predictor>(current_row_buf + i, top_buf + i,
                                        left_buf + i, topleft_buf + i);
-    unsigned pdatais0 =
-        MM(movemask_epi8)(MM(cmpeq_epi8)(pdata, MMSI(setzero)()));
-    if (pdatais0 == SIMD_MASK) {
+    // Probe lane 0; check whether the whole vector is uniform with that value.
+    uint8_t first = (uint8_t)MM(extract_epi8)(pdata, 0);
+    auto bcast = MM(set1_epi8)((char)first);
+    unsigned eq_mask = MM(movemask_epi8)(MM(cmpeq_epi8)(pdata, bcast));
+    bool chunk_uniform = (eq_mask == SIMD_MASK);
+    bool extends = chunk_uniform && (run == 0 || first == run_val);
+    if (extends) {
+      if (run == 0) run_val = first;
       run += SIMD_WIDTH;
     } else {
       if (run != 0) {
-        cb_rle(run);
+        cb_rle(run, run_val);
+        run = 0;
       }
-      run = 0;
-      cb(pdata, SIMD_WIDTH);
+      if (chunk_uniform) {
+        // Start a fresh run from this uniform chunk.
+        run_val = first;
+        run = SIMD_WIDTH;
+      } else {
+        cb(pdata, SIMD_WIDTH);
+      }
     }
     cb_adl(pdata, SIMD_WIDTH, i);
   }
@@ -735,23 +780,28 @@ ProcessRow(size_t bytes_per_line, const unsigned char *current_row_buf,
   if (bytes_remaining) {
     auto pdata = PredictVec<predictor>(current_row_buf + i, top_buf + i,
                                        left_buf + i, topleft_buf + i);
-    unsigned pdatais0 =
-        MM(movemask_epi8)(MM(cmpeq_epi8)(pdata, MMSI(setzero)()));
+    uint8_t first = (uint8_t)MM(extract_epi8)(pdata, 0);
+    auto bcast = MM(set1_epi8)((char)first);
+    unsigned eq_mask = MM(movemask_epi8)(MM(cmpeq_epi8)(pdata, bcast));
     auto mask = (1UL << bytes_remaining) - 1;
+    bool tail_uniform = ((eq_mask & mask) == mask);
+    bool extends = tail_uniform && (run == 0 || first == run_val) &&
+                   run + bytes_remaining >= 16;
 
-    if ((pdatais0 & mask) == mask && run + bytes_remaining >= 16) {
+    if (extends) {
+      if (run == 0) run_val = first;
       run += bytes_remaining;
     } else {
       if (run != 0) {
-        cb_rle(run);
+        cb_rle(run, run_val);
+        run = 0;
       }
-      run = 0;
       cb(pdata, bytes_remaining);
     }
     cb_adl(pdata, bytes_remaining, i);
   }
   if (run != 0) {
-    cb_rle(run);
+    cb_rle(run, run_val);
   }
 }
 
@@ -834,8 +884,8 @@ TryPredictor(size_t bytes_per_line, const unsigned char *current_row_buf,
     cost_direct =
         MM(add_epi32)(cost_direct, MM(sad_epu8)(nbits, nbits_discard));
   };
-  auto rle_cost_cb = [&](size_t run) {
-    cost_rle += table.first16_nbits[0];
+  auto rle_cost_cb = [&](size_t run, uint8_t value) {
+    cost_rle += LiteralNbits(table, value);
     ForAllRLESymbols(run, [&](size_t len, size_t count) {
       cost_rle += (table.dist_nbits + table.lz77_length_nbits[len]) * count;
     });
@@ -1328,8 +1378,8 @@ EncodeOneRow(size_t bytes_per_line, const unsigned char *current_row_buf,
     }
   };
 
-  auto encode_rle_cb = [&](size_t run) {
-    writer->Write(table.first16_nbits[0], table.first16_bits[0]);
+  auto encode_rle_cb = [&](size_t run, uint8_t value) {
+    WriteLiteral(table, value, writer);
     ForAllRLESymbols(run, [&](size_t len, size_t count) {
       uint32_t bits = (table.dist_bits << table.lz77_length_nbits[len]) |
                       table.lz77_length_bits[len];
@@ -1369,8 +1419,8 @@ CollectSymbolCounts(size_t bytes_per_line, const unsigned char *current_row_buf,
 
   auto adler_chunk_cb = [&](const MIVEC, size_t, size_t) {};
 
-  auto encode_rle_cb = [&](size_t run) {
-    symbol_counts[0] += 1;
+  auto encode_rle_cb = [&](size_t run, uint8_t value) {
+    symbol_counts[value] += 1;
     constexpr size_t kLZ77Sym[] = {
         0,   0,   0,   257, 258, 259, 260, 261, 262, 263, 264, 265, 265, 266,
         266, 267, 267, 268, 268, 269, 269, 269, 269, 270, 270, 270, 270, 271,
@@ -1662,9 +1712,12 @@ extern "C" EXPORT void swapChannelsBGRtoRGB(unsigned char* pImage, int numPixels
 
 #ifdef __AVX2__
     // AVX2: process 8 pixels (24 bytes) per iteration.
-    // Load 32 bytes, shuffle within each 128-bit lane (4 pixels per lane),
-    // store only 24 bytes back.
-    const __m256i swapMask256 = _mm256_broadcastsi128_si256(swapMask);
+    // Load 16 bytes per lane via 128-bit ops, shuffle with the 128-bit
+    // swapMask (the 4-pixel pattern repeats identically per lane), store
+    // 12 bytes per lane. We don't actually do a 256-bit shuffle here —
+    // a true _mm256_shuffle_epi8 path could be slightly faster but would
+    // need separate benchmarking; the current per-lane SSE approach is
+    // correct and avoids the lane-cross overhead.
     for (; i + 8 <= numPixels; i += 8) {
         unsigned char* p = pImage + i * 3;
         // Process low 4 pixels (bytes 0-11)

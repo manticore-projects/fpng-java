@@ -80,9 +80,9 @@ tasks.named("jmh") {
 jmh {
     timeUnit = 'ms' // Output time unit. Available time units are: [m, s, ms, us, ns].
     verbosity = 'NORMAL' // Verbosity mode. Available modes are: [SILENT, NORMAL, EXTRA]
-    warmup = '3s' // Time to spend at each warmup iteration.
+    warmup = '1s' // Time to spend at each warmup iteration.
     warmupIterations = 1
-    iterations = 2
+    iterations = 1
     fork = 1
     benchmarkMode = ['avgt']
     //jvmArgs = ['-XX:+UseSerialGC','-Xms512M','-Xmx2G','-XX:+UseStringDeduplication', '-XX:-UseJVMCICompiler', '-XX:-EnableJVMCI']

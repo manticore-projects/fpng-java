@@ -63,10 +63,18 @@ abstract class JmhParetoReportTask extends DefaultTask {
         def groups = groupAndAnalyze(json as List, sizes)
 
         if (groups.isEmpty()) {
-            logger.warn("No (encoder, image, channels, level) tuples joined " +
-                        "between ${resultsFile.asFile.get()} and " +
-                        "${sizesFile.asFile.get()}. Did the benchmark run with " +
-                        "the compressionLevel @Param sweep enabled?")
+            def jmhSample = (json as List).take(3).collect { entry ->
+                def cls = (entry.benchmark as String).tokenize('.')[-2]
+                def p = entry.params
+                "${cls}|${p?.imageName}|${p?.channels}|${p?.compressionLevel}"
+            }
+            def csvSample = sizes.keySet().take(3).toList()
+            logger.warn("Pareto report is empty: 0 of ${(json as List).size()} JMH " +
+                    "entries joined against ${sizes.size()} CSV size rows.")
+            logger.warn("  JMH keys (sample): ${jmhSample}")
+            logger.warn("  CSV keys (sample): ${csvSample}")
+            logger.warn("  Check that encoder class names, channels and " +
+                    "compressionLevel @Param values match on both sides.")
         }
 
         def html = renderHtml(groups)
@@ -83,9 +91,18 @@ abstract class JmhParetoReportTask extends DefaultTask {
         double timeMs
         double timeError
         long sizeBytes
-        boolean pareto = false
-        boolean knee = false
+        boolean pareto = false        // non-dominated within this encoder
+        boolean knee = false          // knee of this encoder's frontier
+        boolean globalPareto = false  // non-dominated across all encoders in the group
+        boolean globalKnee = false    // knee of the global frontier — the overall recommendation
     }
+
+    // JMH compiles each @Benchmark class into a synthetic <Name>_jmhType
+    // subclass (with _jmhType_B1/B2/B3 blackhole variants). If the CSV writer
+    // captured the class name via getClass().getSimpleName() it will carry
+    // that suffix, while results.json reports the user-facing class. Strip
+    // the suffix on read so the two sides join regardless.
+    private static final java.util.regex.Pattern JMH_SUFFIX = ~/_jmhType.*$/
 
     /**
      * Parse EncoderBenchmark.csv. Last row per key wins, allowing reruns to
@@ -98,8 +115,9 @@ abstract class JmhParetoReportTask extends DefaultTask {
         csv.eachLine { line ->
             def parts = line.split(';')
             if (parts.length < 6) return
-            def (_date, encoderClass, imageName, channels, level, sizeStr) =
-                    [parts[0], parts[1], parts[2], parts[3], parts[4], parts[5].trim()]
+            def (_date, rawEncoderClass, imageName, channels, level, sizeStr) =
+            [parts[0], parts[1], parts[2], parts[3], parts[4], parts[5].trim()]
+            def encoderClass = rawEncoderClass.replaceAll(JMH_SUFFIX, '')
             try {
                 long bytes = sizeStr as long
                 sizes["${encoderClass}|${imageName}|${channels}|${level}".toString()] = bytes
@@ -150,11 +168,14 @@ abstract class JmhParetoReportTask extends DefaultTask {
             )
         }
 
-        // Compute Pareto + knee per encoder within each group.
+        // Compute Pareto + knee per encoder within each group, then a second
+        // pass on the combined point set to find the overall winner across
+        // all (encoder, level) candidates.
         grouped.each { _, points ->
             points.groupBy { it.encoder }.each { _enc, pts ->
                 computeParetoAndKnee(pts)
             }
+            computeGlobalParetoAndKnee(points)
         }
 
         return grouped
@@ -166,24 +187,46 @@ abstract class JmhParetoReportTask extends DefaultTask {
      * normalized axes). Mutates the points in place.
      */
     private static void computeParetoAndKnee(List<DataPoint> points) {
+        def (pareto, knee) = computeFrontierAndKnee(points)
+        pareto.each { it.pareto = true }
+        if (knee != null) (knee as DataPoint).knee = true
+    }
+
+    /**
+     * Same calculation as computeParetoAndKnee, but writes to the global
+     * flags. Run on the full point set of an (image, channels) group to
+     * find the single best (encoder, level) combination — the global knee.
+     */
+    private static void computeGlobalParetoAndKnee(List<DataPoint> points) {
+        def (pareto, knee) = computeFrontierAndKnee(points)
+        pareto.each { it.globalPareto = true }
+        if (knee != null) (knee as DataPoint).globalKnee = true
+    }
+
+    /**
+     * Pure function: given a set of (time, size) points, returns
+     * [paretoPoints, kneePoint-or-null] without mutating any flag fields.
+     * Both wrappers above just decide which boolean to flip.
+     */
+    private static List computeFrontierAndKnee(List<DataPoint> points) {
         // A point is dominated if some other point is <= on both axes
         // and strictly < on at least one.
-        points.each { p ->
-            p.pareto = !points.any { q ->
+        def pareto = points.findAll { p ->
+            !points.any { q ->
                 !q.is(p) &&
                         q.timeMs <= p.timeMs && q.sizeBytes <= p.sizeBytes &&
                         (q.timeMs < p.timeMs || q.sizeBytes < p.sizeBytes)
             }
         }
 
-        def frontier = points.findAll { it.pareto }.sort { it.timeMs }
-        if (frontier.size() < 3) return
+        def frontier = pareto.toSorted { it.timeMs }
+        if (frontier.size() < 3) return [pareto, null]
 
         double tMin = frontier.first().timeMs
         double tMax = frontier.last().timeMs
         double sMin = frontier.last().sizeBytes
         double sMax = frontier.first().sizeBytes
-        if (tMax == tMin || sMax == sMin) return
+        if (tMax == tMin || sMax == sMin) return [pareto, null]
 
         int kneeIdx = 0
         double kneeDist = -1.0d
@@ -199,7 +242,7 @@ abstract class JmhParetoReportTask extends DefaultTask {
                 kneeIdx = i
             }
         }
-        frontier[kneeIdx].knee = true
+        return [pareto, frontier[kneeIdx]]
     }
 
     // ── HTML rendering ──────────────────────────────────────────────────
@@ -233,6 +276,7 @@ abstract class JmhParetoReportTask extends DefaultTask {
     --border: #e2e2ef;
     --pareto-bg:    rgba(3, 1, 70, 0.05);
     --knee-bg:      rgba(241, 196, 15, 0.18);
+    --winner-bg:    rgba(241, 196, 15, 0.45);
     --dominated-bg: rgba(170, 183, 184, 0.12);
   }
   *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -336,6 +380,8 @@ abstract class JmhParetoReportTask extends DefaultTask {
 
   tbody tr.knee td      { background: var(--knee-bg); font-weight: 600; }
   tbody tr.knee td:first-child::before { content: '\\1F3C6\\00a0'; }
+  tbody tr.winner td    { background: var(--winner-bg); font-weight: 700; color: var(--navy); }
+  tbody tr.winner td:first-child::before { content: '\\1F451\\00a0'; }
   tbody tr.pareto td    { background: var(--pareto-bg); }
   tbody tr.dominated td { color: var(--muted); }
 
@@ -348,9 +394,38 @@ abstract class JmhParetoReportTask extends DefaultTask {
     text-transform: uppercase;
     letter-spacing: 0.04em;
   }
+  .flag-winner    { background: var(--navy); color: var(--gold); border: 1px solid var(--gold); }
   .flag-knee      { background: var(--gold); color: var(--navy); }
   .flag-pareto    { background: var(--navy); color: white; }
   .flag-dominated { background: transparent; color: var(--muted); }
+
+  .winner-banner {
+    background: var(--winner-bg);
+    color: var(--navy);
+    border: 1px solid var(--gold);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .winner-banner::before { content: '\\1F451'; font-size: 1.05rem; }
+  .winner-banner .label {
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-right: 0.25rem;
+  }
+  .winner-banner .none {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--muted);
+  }
 
   .encoder-section { margin-top: 0.5rem; }
   .encoder-section h3 {
@@ -375,6 +450,7 @@ abstract class JmhParetoReportTask extends DefaultTask {
     border: 1px solid var(--navy);
   }
   .legend-knee { background: var(--gold); }
+  .legend-winner { background: var(--gold); border-width: 2.5px; box-shadow: 0 0 0 2px var(--navy) inset; }
   .legend-pareto { background: var(--navy); }
   .legend-dominated { background: transparent; }
 
@@ -438,19 +514,20 @@ ${cells}
             }.join(',')
 
             def bgColours = encPoints.collect { p ->
-                p.knee ? "'#f1c40f'" : (p.pareto ? "'${colour}'" : "'rgba(170,183,184,0.4)'")
+                (p.globalKnee || p.knee) ? "'#f1c40f'" :
+                        (p.pareto ? "'${colour}'" : "'rgba(170,183,184,0.4)'")
             }.join(',')
 
             def borderColours = encPoints.collect { p ->
-                p.knee ? "'#030146'" : "'${colour}'"
+                (p.globalKnee || p.knee) ? "'#030146'" : "'${colour}'"
             }.join(',')
 
             def radii = encPoints.collect { p ->
-                p.knee ? '10' : (p.pareto ? '7' : '5')
+                p.globalKnee ? '14' : (p.knee ? '10' : (p.pareto ? '7' : '5'))
             }.join(',')
 
             def borderWidths = encPoints.collect { p ->
-                p.knee ? '2.5' : '1.5'
+                p.globalKnee ? '4' : (p.knee ? '2.5' : '1.5')
             }.join(',')
 
             datasets.append("""        {
@@ -461,7 +538,7 @@ ${cells}
           borderColor: [${borderColours}],
           borderWidth: [${borderWidths}],
           pointRadius: [${radii}],
-          pointHoverRadius: [${encPoints.collect { p -> p.knee ? '12' : '8' }.join(',')}],
+          pointHoverRadius: [${encPoints.collect { p -> p.globalKnee ? '16' : (p.knee ? '12' : '8') }.join(',')}],
         },
 """)
 
@@ -509,12 +586,15 @@ ${cells}
         <tbody>
 """)
             encPoints.each { p ->
-                String trClass = p.knee ? 'knee' :
-                                 (p.pareto ? 'pareto' : 'dominated')
-                String flagClass = p.knee ? 'flag-knee' :
-                                   (p.pareto ? 'flag-pareto' : 'flag-dominated')
-                String flagText = p.knee ? 'KNEE' :
-                                  (p.pareto ? 'PARETO' : 'dominated')
+                String trClass = p.globalKnee ? 'winner' :
+                        (p.knee ? 'knee' :
+                                (p.pareto ? 'pareto' : 'dominated'))
+                String flagClass = p.globalKnee ? 'flag-winner' :
+                        (p.knee ? 'flag-knee' :
+                                (p.pareto ? 'flag-pareto' : 'flag-dominated'))
+                String flagText = p.globalKnee ? 'WINNER' :
+                        (p.knee ? 'KNEE' :
+                                (p.pareto ? 'PARETO' : 'dominated'))
                 double ratioPct = 100.0d * p.sizeBytes / maxSize
                 tables.append("""          <tr class="${trClass}">
             <td>${p.level}</td>
@@ -528,6 +608,28 @@ ${cells}
             tables.append("        </tbody>\n      </table>\n    </div>\n")
         }
 
+        // Find the global knee (overall winner) so we can render a banner
+        // and the expanded legend. May be null when the global frontier
+        // has fewer than 3 points (knee calculation needs three to define
+        // a meaningful elbow).
+        def winner = points.find { it.globalKnee }
+        def winnerBanner
+        if (winner != null) {
+            winnerBanner = """  <div class="winner-banner">
+    <span class="label">Overall best</span>
+    ${esc(winner.encoder)} at level ${winner.level}
+    &mdash; ${String.format('%.2f', winner.timeMs)}&nbsp;ms,
+    ${String.format('%.1f', winner.sizeBytes / 1024.0d)}&nbsp;KB
+  </div>
+"""
+        } else {
+            winnerBanner = """  <div class="winner-banner">
+    <span class="label">Overall best</span>
+    <span class="none">no compromise winner &mdash; global frontier has fewer than 3 points</span>
+  </div>
+"""
+        }
+
         return """
 <div class="group">
   <h2>
@@ -535,8 +637,10 @@ ${cells}
     ${esc(imageName as String)}
   </h2>
 
+${winnerBanner}
   <div class="legend">
-    <div class="legend-item"><span class="legend-marker legend-knee"></span>knee (recommended)</div>
+    <div class="legend-item"><span class="legend-marker legend-winner"></span>overall winner</div>
+    <div class="legend-item"><span class="legend-marker legend-knee"></span>per-encoder knee</div>
     <div class="legend-item"><span class="legend-marker legend-pareto"></span>pareto-optimal</div>
     <div class="legend-item"><span class="legend-marker legend-dominated"></span>dominated</div>
   </div>

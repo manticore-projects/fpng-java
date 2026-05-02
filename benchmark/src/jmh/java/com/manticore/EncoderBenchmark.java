@@ -38,10 +38,10 @@ import java.util.Date;
 @State(Scope.Benchmark)
 public abstract class EncoderBenchmark {
 
-    @Param({"example.png", "looklet-look-scale6.png"})
+    @Param({/* "example.png", "looklet-look-scale6.png", */ "text_test.png"})
     String imageName;
 
-    @Param({"3", "4"})
+    @Param({"3"})
     int channels;
 
     // Compression-level sweep. JMH expands this into one benchmark run per

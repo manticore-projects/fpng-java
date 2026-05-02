@@ -1,44 +1,74 @@
+// =============================================================================
+// fpng/build.gradle (also used by fpnge/) — cmake-driven, no cpp-library
+// =============================================================================
+//
+// Replaces the cpp-library plugin entirely. The plugin's Windows ARM64 issue
+// (gradle/gradle#21703 — WindowsRegistry native service unavailable on
+// Windows ARM64) made any cpp-library subproject crash at configuration
+// time on Windows-on-ARM runners, which broke even Java-only tasks like
+// :zpng-java:check that walk the multi-project graph.
+//
+// This file is shared between fpng/ and fpnge/ via project.name lookup.
+// Both projects have the same shape: one .cc file, x86 SIMD, no external
+// library dependencies, output at build/native-jar-staging/<os>/<arch>/.
+//
+// Targets are x86 only — these encoders use SSE/AVX intrinsics with no
+// NEON port. ARM hosts skip the build silently (the workflow only assigns
+// these projects to x86 runners).
+
 plugins {
-    id 'cpp-library'
+    id 'base'   // Provides the `assemble` lifecycle task we wire into.
 }
 
 repositories {
     mavenCentral()
 }
 
-library {
-    // CAREFUL: adding STATIC will alter the FROM of the `copyNativeLib` task below
-    linkage = [Linkage.SHARED]
-    targetMachines = [
-            machines.linux.x86_64,
-            machines.windows.x86, machines.windows.x86_64,
-            machines.macOS.x86_64
-            // depends on NEON for SSE/AVX intrinsics and needs changes in the C++ sources
-            // , machines.macOS.architecture("aarch64")
-    ]
+// =============================================================================
+// Host detection
+// =============================================================================
+
+def hostOs = org.gradle.internal.os.OperatingSystem.current()
+def hostArchRaw = System.getProperty('os.arch').toLowerCase()
+def hostIsArm64  = (hostArchRaw == 'aarch64' || hostArchRaw == 'arm64')
+def hostIsX86_64 = (hostArchRaw == 'amd64' || hostArchRaw == 'x86_64' || hostArchRaw == 'x86-64')
+
+// fpng/fpnge use x86 SIMD (SSE/AVX) intrinsics with no NEON port. On ARM
+// hosts we skip native build entirely. The CI workflow only runs these
+// subprojects' tasks on x86 runners (build-native matrix entries), so this
+// branch only triggers for local development on Apple Silicon / Linux ARM.
+def isArchSupported = hostIsX86_64
+if (!isArchSupported) {
+    logger.lifecycle "${project.name}: ARM host detected (${hostArchRaw}); skipping native build (x86-only encoder)"
 }
 
-// === Profile-Guided Optimization (PGO) -- GCC/Clang only ===========
+// =============================================================================
+// Library naming
+// =============================================================================
 //
-// Three-stage workflow toggled via -PpgoStage=<generate|use>:
-//
-//   * none (default)    Normal build, no PGO flags.
-//   * generate          Compile/link with -fprofile-generate. The resulting
-//                       binary writes .gcda profile data to .pgo/fpnge/
-//                       when exercised. Slower than baseline because of
-//                       instrumentation -- benchmark numbers from this
-//                       stage are meaningless.
-//   * use               Compile/link with -fprofile-use, consuming the
-//                       .gcda data from the previous stage. This is the
-//                       optimized build to measure.
-//
-// Profile data lives at <repo-root>/.pgo/fpnge/ -- intentionally OUTSIDE
-// the build dir so `:fpnge:clean` between stages doesn't wipe it. Add
-// `.pgo/` to .gitignore.
-//
-// Failure mode this guards against: if you compile with -fprofile-use and
-// no .gcda files exist, GCC emits a warning and produces a non-PGO binary
-// silently. The configuration-time check below makes that a hard error.
+// project.name is 'fpng' or 'fpnge'. Both follow the same naming rules:
+//   Linux:   libfpng.so / libfpnge.so
+//   macOS:   libfpng.dylib / libfpnge.dylib
+//   Windows: fpng.dll / fpnge.dll
+
+def libName = project.name
+
+def libFileName = hostOs.isWindows() ? "${libName}.dll"
+        : hostOs.isMacOsX()  ? "lib${libName}.dylib"
+        :                       "lib${libName}.so"
+
+// Path segments matching what the CI workflow's verification step expects.
+// Format: build/native-jar-staging/<os>/<arch>/[stripped/]<file>
+def osPathSegment = hostOs.isWindows() ? 'windows'
+        : hostOs.isMacOsX()  ? 'macos'
+        :                       'linux'
+def archPathSegment = 'x86-64'  // x86_64 only for these encoders
+
+def stagingDir = layout.buildDirectory.dir('native-jar-staging')
+
+// =============================================================================
+// PGO config (passes through to cmake -DFPNG_PGO_STAGE / FPNGE_PGO_STAGE)
+// =============================================================================
 
 def pgoStage = providers.gradleProperty('pgoStage').getOrElse('none')
 def pgoDir = rootProject.layout.projectDirectory.dir(".pgo/${project.name}")
@@ -48,101 +78,183 @@ if (pgoStage == 'use') {
     def gcdaCount = fileTree(dir: pgoDir, include: '**/*.gcda').files.size()
     if (gcdaCount == 0) {
         throw new GradleException(
-            "PGO 'use' stage requires .gcda profile data in ${pgoDir}, but none found.\n" +
-            "Run with -PpgoStage=generate first and exercise the library."
+                "PGO 'use' stage requires .gcda profile data in ${pgoDir}, but none found.\n" +
+                        "Run with -PpgoStage=generate first and exercise the library."
         )
     }
-    logger.lifecycle("PGO use: consuming ${gcdaCount} .gcda file(s) from ${pgoDir}")
+    logger.lifecycle("${libName} PGO use: consuming ${gcdaCount} .gcda file(s) from ${pgoDir}")
 } else if (pgoStage == 'generate') {
-    logger.lifecycle("PGO generate: profile data will be written to ${pgoDir}")
+    logger.lifecycle("${libName} PGO generate: profile data will be written to ${pgoDir}")
 }
 
-tasks.withType(CppCompile).configureEach {
-    debuggable = false
-    optimized = true
-    compilerArgs.addAll toolChain.map { toolChain ->
-        if (toolChain in VisualCpp) {
-            return ['/LD', '/EHsc', '/Ox', '/std:c++17', '/std:c++17', '/W4', '/arch:AVX2']
-        } else {
-            def base = ['-fPIC', '-O3', '-march=x86-64', '-mtune=generic',
-                        '-funroll-loops', '-std=c++17', '-Wall', '-msse4.2',
-                        '-mpclmul', '-msse2', '-mavx2', '-fno-strict-aliasing']
-            if (pgoStage == 'generate') {
-                return base + ["-fprofile-generate=${pgoDir}"]
-            } else if (pgoStage == 'use') {
-                // -fprofile-correction lets GCC tolerate small mismatches
-                // between profile data and current sources -- e.g. line
-                // numbers shifting from a comment edit. Without it, a tiny
-                // source change after the generate stage forces a full
-                // re-train. With it, profile drift degrades gracefully.
-                return base + ["-fprofile-use=${pgoDir}", '-fprofile-correction']
-            }
-            return base
-        }
-    }
-}
+// CMake variable name uses uppercased project name (FPNG_PGO_STAGE,
+// FPNGE_PGO_STAGE). Matches the CMakeLists.txt convention.
+def pgoVarPrefix = libName.toUpperCase()
 
-tasks.withType(LinkSharedLibrary).configureEach {
-    linkerArgs.addAll toolChain.map { toolChain ->
-        if (toolChain in Gcc) {
-            def base = ['-lgcov' /* , '--coverage' , '-lasan'*/]
-            if (pgoStage == 'generate') {
-                return base + ["-fprofile-generate=${pgoDir}"]
-            } else if (pgoStage == 'use') {
-                return base + ["-fprofile-use=${pgoDir}"]
-            }
-            return base
-        } else {
-            return []
-        }
-    }
-}
+// =============================================================================
+// Build task
+// =============================================================================
+//
+// Single Exec-task per project that runs cmake configure + cmake --build +
+// cmake --install. The result lands at build/${libName}-install/lib (Unix)
+// or build/${libName}-install/bin (Windows .dll).
 
-// Local-dev convenience: copies this platform's native lib directly into the
-// consumer projects' build/resources/main/. Wired into the consumers via
-// `compileJava.dependsOn { ':fpng:copyNativeLib' }` so that a developer who
-// runs `./gradlew :fpng-java:test` on their machine gets their platform's
-// .so/.dylib/.dll without any extra steps.
-tasks.register('copyNativeLib') {
-    dependsOn assemble
+def cmakeBuildDir = layout.buildDirectory.dir("${libName}-cmake-build")
+def cmakeInstallDir = layout.buildDirectory.dir("${libName}-install")
+
+tasks.register("buildNativeLib") {
+    description = "Build ${libFileName} via cmake"
+    group = 'native'
+    enabled = isArchSupported
+
+    // Inputs/outputs for proper up-to-date checking
+    inputs.files(fileTree('src/main/cpp')).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.files(fileTree('src/main/headers')).withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.file('CMakeLists.txt').withPathSensitivity(PathSensitivity.RELATIVE)
+    inputs.property('pgoStage', pgoStage)
+    inputs.property('hostOs', hostOs.name)
+    outputs.file(cmakeInstallDir.map {
+        it.file(hostOs.isWindows() ? "bin/${libFileName}" : "lib/${libFileName}")
+    })
+
     doLast {
-        def libName = project.name  // 'fpng' here, 'fpnge' in the sibling project
+        def projectDir = layout.projectDirectory.asFile
+        def b = cmakeBuildDir.get().asFile
+        b.mkdirs()
 
-        def targets = [
-                "../fpnge-java/build/resources/main/lib/${libName}",
-                "../fpng-java23/build/resources/main/lib/${libName}"
+        def cmakeArgs = [
+                '-DCMAKE_BUILD_TYPE=Release',
+                "-DCMAKE_INSTALL_PREFIX=${cmakeInstallDir.get().asFile.absolutePath}",
         ]
-        targets.each { dest ->
+
+        // PGO config: only pass -D vars when PGO is actually active.
+        // CMake warns about unused -D variables on every configure, so we
+        // only set them when the corresponding code path in CMakeLists.txt
+        // will read them. With pgoStage='none' (the default), neither
+        // <PROJ>_PGO_STAGE nor <PROJ>_PGO_DIR is referenced.
+        if (pgoStage != 'none') {
+            cmakeArgs += [
+                    "-D${pgoVarPrefix}_PGO_STAGE=${pgoStage}",
+                    "-D${pgoVarPrefix}_PGO_DIR=${pgoDir}",
+            ]
+        }
+
+        // MSVC generator-arch. Skipped on Linux/macOS where cmake picks the
+        // default (Unix Makefiles + system gcc/clang).
+        if (hostOs.isWindows()) {
+            cmakeArgs += ['-A', 'x64']
+        }
+
+        cmakeArgs << projectDir.absolutePath
+
+        logger.lifecycle "Configuring ${libName} for ${osPathSegment}/${archPathSegment}..."
+        exec {
+            workingDir b
+            commandLine(['cmake'] + cmakeArgs)
+        }
+
+        logger.lifecycle "Building ${libName}..."
+        exec {
+            workingDir b
+            commandLine 'cmake', '--build', '.',
+                    '--config', 'Release',
+                    '-j', Runtime.runtime.availableProcessors().toString()
+        }
+        exec {
+            workingDir b
+            commandLine 'cmake', '--install', '.', '--config', 'Release'
+        }
+    }
+}
+
+// =============================================================================
+// Stage for inclusion in the *-java JARs (CI use)
+// =============================================================================
+//
+// Output structure matches what cpp-library used to produce, so the workflow's
+// verification step and EncoderBase's resource lookup logic stay unchanged:
+//
+//   build/native-jar-staging/<os>/<arch>/[stripped/]<file>
+//
+// The "stripped/" segment is a remnant of cpp-library's debug/release variant
+// layout; we preserve it because EncoderBase.findNativeLibPath() expects it.
+
+tasks.register('stageNativeLibForJar', Copy) {
+    description = "Stage ${libFileName} into native-jar-staging for inclusion in the *-java JAR (CI use)."
+    group = 'native'
+    enabled = isArchSupported
+    dependsOn 'buildNativeLib'
+
+    def isWin = hostOs.isWindows()
+
+    // Windows .dll lives under bin/ in cmake's install layout; .so/.dylib
+    // under lib/.
+    from(cmakeInstallDir.map { it.dir(isWin ? 'bin' : 'lib') }) {
+        include libFileName
+    }
+
+    // The "stripped/" segment in the path is preserved on Linux/macOS to
+    // match cpp-library's old layout. On Windows there's no "stripped/"
+    // segment for the .dll.
+    def destSubdir = isWin ? "${osPathSegment}/${archPathSegment}"
+            : "${osPathSegment}/${archPathSegment}/stripped"
+    into stagingDir.map { it.dir(destSubdir) }
+
+    // Strip on Linux/macOS (matches cpp-library's "stripped/" naming).
+    // Skip on Windows — MSVC produces stripped Release builds by default.
+    if (!isWin) {
+        doLast {
+            def stagedFile = new File(
+                    stagingDir.get().asFile,
+                    "${destSubdir}/${libFileName}")
+            if (stagedFile.exists()) {
+                exec {
+                    commandLine 'strip', '-x', stagedFile.absolutePath
+                    ignoreExitValue = true   // non-fatal warnings happen on macOS
+                }
+            }
+        }
+    }
+}
+
+assemble.dependsOn 'stageNativeLibForJar'
+
+// =============================================================================
+// Local-dev convenience: copy the platform's native lib directly into the
+// consumer projects' build/resources/main/lib/<libName>/ trees. Wired into
+// the consumers via `compileJava.dependsOn { ':fpng:copyNativeLib' }` (and
+// the equivalent for fpnge), so a developer running `./gradlew :fpng-java:test`
+// on their machine gets their platform's .so/.dylib/.dll into the test
+// classpath without extra steps.
+//
+// Targets per project.name:
+//   fpng  -> fpng-java   (JNA wrapper for fpng)
+//         -> fpng-java23 (FFM wrapper, handles both fpng AND fpnge in one
+//                         module, so receives both libs)
+//   fpnge -> fpnge-java  (JNA wrapper for fpnge)
+//         -> fpng-java23 (same FFM wrapper as above)
+//
+// Each project pushes its OWN libName (fpng or fpnge); the consumers'
+// classpath ends up with lib/fpng/<os>/<arch>/... and lib/fpnge/<os>/<arch>/...
+// trees from whichever projects are active.
+
+def jnaConsumer = libName + '-java'   // 'fpng-java' or 'fpnge-java'
+
+tasks.register('copyNativeLib') {
+    enabled = isArchSupported
+    dependsOn 'stageNativeLibForJar'
+    doLast {
+        def targets = [
+                "../${jnaConsumer}/build/resources/main/lib/${libName}",
+                "../fpng-java23/build/resources/main/lib/${libName}",
+        ]
+        targets.each { destPath ->
+            def dest = file(destPath)
             project.copy {
-                from './build/lib/main/release'
-                include '**/stripped/*.so', '**/stripped/*.dylib', '**/*.dll'
+                from stagingDir
                 into dest
             }
+            logger.lifecycle "Copied ${libName} natives into ${dest}"
         }
     }
-}
-
-// CI staging: produces a self-contained directory at
-// build/native-jar-staging/<os>/<arch>/[stripped/]<file> matching the layout
-// EncoderBase expects under lib/<libName>/ in the JAR. The CI workflow runs
-// this on each platform, uploads the result as an artifact, and merges all
-// three trees on the publish runner.
-//
-// We just preserve cpp-library's natural <os>/<arch>/[stripped/]<file>
-// hierarchy from build/lib/main/release/. Filtering keeps only the stripped
-// release variant on Linux/macOS, the .dll on Windows, and drops debug
-// artifacts (.lib/.exp/.pdb).
-tasks.register('stageNativeLibForJar', Sync) {
-    description = 'Stage native lib for inclusion in the *-java JAR (CI use).'
-    dependsOn assemble
-
-    def libName = project.name  // 'fpng' here, 'fpnge' in the sibling project
-
-    from(layout.buildDirectory.dir('lib/main/release')) {
-        include "**/${libName}.dll"
-        include "**/stripped/lib${libName}.so"
-        include "**/stripped/lib${libName}.dylib"
-    }
-
-    into layout.buildDirectory.dir('native-jar-staging')
 }

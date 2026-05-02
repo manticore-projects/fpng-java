@@ -47,6 +47,4 @@ class FPNGTest {
             NoSuchMethodException, IllegalAccessException {
         EncoderBase.encoderTest(FPNGE23.class, fileName, channels);
     }
-
-
 }

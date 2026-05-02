@@ -2,6 +2,12 @@
 
 Changelog of fpng-java.
 
+## 1.6.10 (2026-04-25)
+
+### Bug Fixes
+
+-  JNA `FPNGEncoder` shall observe `flags` (compression level) ([72abc](https://github.com/manticore-projects/fpng-java/commit/72abc5a6f6605d1) Andreas Reichel)
+
 ## 1.6.9 (2026-04-25)
 
 ### Features

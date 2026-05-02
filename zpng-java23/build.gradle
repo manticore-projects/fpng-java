@@ -1,0 +1,198 @@
+plugins {
+    id 'java-library'
+    id 'maven-publish'
+    id 'signing'
+}
+
+description = 'Java23 FFM Wrapper around the native SSE/AVX/NEON optimised ZPNG Encoders'
+
+repositories {
+    mavenCentral()
+}
+
+configurations {
+    xmlDoclet
+}
+
+dependencies {
+    api project(':encoder-java')
+
+    testImplementation platform('org.junit:junit-bom:5.9.1')
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher:1.11.4'
+    testImplementation 'org.junit.jupiter:junit-jupiter:5.11.4'
+    testImplementation 'commons-io:commons-io:+'
+
+    // Java Doc in XML Format
+    xmlDoclet 'com.manticore-projects.tools:xml-doclet:+'
+}
+
+processResources {
+    duplicatesStrategy = DuplicatesStrategy.EXCLUDE  // first wins
+
+    from(rootProject.layout.projectDirectory.dir('zpng/build/native-jar-staging')) {
+        into 'lib/zpng'
+    }
+    dependsOn ':zpng:stageNativeLibForJar'
+}
+
+test {
+    doFirst {
+        copy {
+            from '../benchmark/src/test/resources/'
+            into 'build/resources/test'
+            include '*.png'
+        }
+    }
+    useJUnitPlatform()
+}
+
+java {
+    withSourcesJar()
+    withJavadocJar()
+
+    sourceCompatibility = '23'
+    targetCompatibility = '23'
+
+    // needed for XML-Doclet to work (since Doclet changed again with Java 13)
+    toolchain {
+        languageVersion.set(JavaLanguageVersion.of(23))
+    }
+}
+
+spotless {
+    java {
+        leadingTabsToSpaces(4)
+        eclipse().configFile(  rootProject.file('config/formatter/eclipse-java-google-style.xml') )
+    }
+}
+
+spotbugsMain {
+    reports {
+        html {
+            enabled = true
+            destination = rootProject.file("build/reports/spotbugs/main/spotbugs.html")
+            stylesheet = 'fancy-hist.xsl'
+        }
+    }
+}
+
+checkstyle {
+    sourceSets = [sourceSets.main, sourceSets.test]
+    configFile = rootProject.file('config/checkstyle/checkstyle.xml')
+}
+
+tasks.withType(Checkstyle).configureEach {
+    reports {
+        xml.required = false
+        html.required = true
+    }
+}
+
+
+jacocoTestReport {
+    dependsOn test // tests are required to run before generating the report
+    reports {
+        xml.required = false
+        csv.required = false
+        html.outputLocation = layout.buildDirectory.dir('reports/jacoco')
+    }
+}
+jacocoTestCoverageVerification {
+    violationRules {
+        rule {
+            //element = 'CLASS'
+            limit {
+                minimum = 1.00
+            }
+        }
+        rule {
+            //element = 'CLASS'
+            limit {
+                counter = 'LINE'
+                value = 'MISSEDCOUNT'
+                maximum = 0
+            }
+        }
+    }
+}
+
+javadoc {
+    if (JavaVersion.current().isJava9Compatible()) {
+        options.addBooleanOption('html5', true)
+    }
+    options.addBooleanOption("Xdoclint:none", true)
+}
+
+tasks.register('xmldoc', Javadoc) {
+    dependsOn(compileJava)
+
+    def outFile = layout.buildDirectory.file("reports/xmlDoclet/javadoc_fpnge.xml").get().asFile
+    source = sourceSets.main.allJava
+    classpath = sourceSets.main.runtimeClasspath
+    title = "FPNGe API $version"
+    destinationDir = layout.buildDirectory.dir("reports/xmlDoclet").get().asFile
+    options.docletpath = configurations.xmlDoclet.files as List
+    options.doclet = "com.manticore.tools.xmldoclet.XmlDoclet"
+    options.addStringOption("basePackage", "com.manticore.tools")
+    options.addStringOption("filename", outFile.getName())
+
+    doLast {
+        copy {
+            from outFile
+            into rootProject.layout.projectDirectory.dir("src/site/sphinx/_static").asFile
+        }
+    }
+}
+
+publishing {
+    publications {
+        mavenJava(MavenPublication) {
+
+            from components.java
+            versionMapping {
+                usage('java-api') {
+                    fromResolutionOf('runtimeClasspath')
+                }
+                usage('java-runtime') {
+                    fromResolutionResult()
+                }
+            }
+            pom {
+                name = 'fpnge-java'
+                description = 'Java Wrapper around the native AVX optimized FPNGE Encoder'
+                url = 'https://manticore-projects.com/JavaFPNG'
+                licenses {
+                    license {
+                        name = 'The GNU Affero General Public License, Version 3.0'
+                        url = 'https://www.gnu.org/licenses/agpl-3.0.html#license-text'
+                    }
+                }
+                developers {
+                    developer {
+                        id = 'are'
+                        name = 'Andreas Reichel'
+                        email = 'andreas@manticore-projects.com'
+                    }
+                }
+                scm {
+                    connection = 'scm:git:https://github.com/manticore-projects/fpng-java.git'
+                    developerConnection = 'scm:git:ssh://git@github.com:manticore-projects/fpng-java.git'
+                    url = 'https://github.com/manticore-projects/JavaFPNG'
+                }
+            }
+        }
+    }
+    repositories {
+        // Sonatype Central is configured via nexus-publish plugin in root build.gradle.
+        // Publish with: ./gradlew publishToSonatype closeAndReleaseSonatypeStagingRepository
+        maven {
+            name = "GitHubPackages"
+            url = uri("https://maven.pkg.github.com/manticore-projects/fpng-java")
+            credentials(PasswordCredentials)
+        }
+    }
+}
+
+signing {
+    sign publishing.publications.mavenJava
+}
