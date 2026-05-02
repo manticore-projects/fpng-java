@@ -659,4 +659,5 @@
 
     <suppress checks="ConstantName" files="FPNGE23\.java"/>
     <suppress checks="ConstantName" files="FPNGEncoder23\.java"/>
+    <suppress checks="ConstantName" files="ZPNG23\.java"/>
 </suppressions>

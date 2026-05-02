@@ -1,3 +1,2 @@
 rootProject.name = 'java-fpng'
-include 'encoder-java', 'fpng', 'fpnge', 'fpng-java', 'fpnge-java', 'benchmark', 'maven-test', 'fpng-java23'
-
+include 'encoder-java', 'fpng', 'fpnge', 'zpng', 'fpng-java', 'fpnge-java', 'zpng-java', 'benchmark', 'maven-test', 'fpng-java23', 'zpng-java23'

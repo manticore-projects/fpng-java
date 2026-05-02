@@ -8,6 +8,14 @@ Latest Changes since |JAVA_FPNG_VERSION|
 =============================================================
 
 
+  * **feat: add ZPNG encoder, ARM64 support, and migrate to cmake-driven native build**
+    
+    Andreas Reichel, 2026-05-02
+
+Version 1.6.10
+=============================================================
+
+
   * **fix: JNA `FPNGEncoder` shall observe `flags` (compression level)**
     
     Andreas Reichel, 2026-04-25

@@ -1,0 +1,926 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>JMH PNG Encoder Pareto Report</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation@3"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Fira+Sans:wght@300;400;600;700&display=swap');
+
+  :root {
+    --navy:   #030146;
+    --orange: #FF420E;
+    --gold:   #f1c40f;
+    --bg:     #f7f7fb;
+    --card:   #ffffff;
+    --muted:  #6c6c8a;
+    --border: #e2e2ef;
+    --pareto-bg:    rgba(3, 1, 70, 0.05);
+    --knee-bg:      rgba(241, 196, 15, 0.18);
+    --winner-bg:    rgba(241, 196, 15, 0.45);
+    --dominated-bg: rgba(170, 183, 184, 0.12);
+  }
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: 'Fira Sans', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--navy);
+    line-height: 1.5;
+    padding: 2rem;
+  }
+
+  header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2.5rem;
+    border-bottom: 3px solid var(--orange);
+    padding-bottom: 1rem;
+  }
+  header .logo {
+    width: 48px; height: 48px;
+    background: var(--navy);
+    border-radius: 8px;
+    display: flex; align-items: center; justify-content: center;
+    color: white; font-weight: 700; font-size: 1.3rem;
+  }
+  header h1 { font-size: 1.6rem; font-weight: 700; }
+  header .sub { color: var(--muted); font-size: 0.9rem; font-weight: 300; }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 1.5rem;
+    margin-bottom: 2rem;
+  }
+  @media (max-width: 1100px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .group {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.25rem 1.5rem;
+    box-shadow: 0 1px 4px rgba(3,1,70,0.06);
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+  .group h2 {
+    font-size: 1.05rem;
+    font-weight: 600;
+    margin-bottom: 0.75rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .group h2 .badge {
+    display: inline-block;
+    background: var(--navy);
+    color: white;
+    font-size: 0.65rem;
+    font-weight: 600;
+    padding: 0.12rem 0.5rem;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .chart-wrap {
+    width: 100%;
+    margin-bottom: 1rem;
+    flex: 1;
+    min-height: 320px;
+    position: relative;
+    overflow: hidden;
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.78rem;
+    margin-top: 0.5rem;
+  }
+  thead th {
+    text-align: left;
+    padding: 0.4rem 0.5rem;
+    border-bottom: 2px solid var(--navy);
+    font-weight: 600;
+    font-size: 0.7rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--muted);
+  }
+  thead th:nth-child(n+3) { text-align: right; }
+  tbody td {
+    padding: 0.3rem 0.5rem;
+    border-bottom: 1px solid var(--border);
+  }
+  tbody td:nth-child(n+3) { text-align: right; font-variant-numeric: tabular-nums; }
+
+  tbody tr.knee td      { background: var(--knee-bg); font-weight: 600; }
+  tbody tr.knee td:first-child::before { content: '\1F3C6\00a0'; }
+  tbody tr.winner td    { background: var(--winner-bg); font-weight: 700; color: var(--navy); }
+  tbody tr.winner td:first-child::before { content: '\1F451\00a0'; }
+  tbody tr.pareto td    { background: var(--pareto-bg); }
+  tbody tr.dominated td { color: var(--muted); }
+
+  .flag {
+    display: inline-block;
+    font-size: 0.66rem;
+    font-weight: 600;
+    padding: 0.05rem 0.35rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .flag-winner    { background: var(--navy); color: var(--gold); border: 1px solid var(--gold); }
+  .flag-knee      { background: var(--gold); color: var(--navy); }
+  .flag-pareto    { background: var(--navy); color: white; }
+  .flag-dominated { background: transparent; color: var(--muted); }
+
+  .winner-banner {
+    background: var(--winner-bg);
+    color: var(--navy);
+    border: 1px solid var(--gold);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    margin-bottom: 0.75rem;
+    font-size: 0.85rem;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  .winner-banner::before { content: '\1F451'; font-size: 1.05rem; }
+  .winner-banner .label {
+    text-transform: uppercase;
+    font-size: 0.65rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    color: var(--muted);
+    margin-right: 0.25rem;
+  }
+  .winner-banner .none {
+    font-style: italic;
+    font-weight: 400;
+    color: var(--muted);
+  }
+
+  .encoder-section { margin-top: 0.5rem; }
+  .encoder-section h3 {
+    font-size: 0.85rem;
+    font-weight: 600;
+    margin-bottom: 0.25rem;
+    color: var(--navy);
+  }
+
+  .legend {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    margin: 0.5rem 0 0.75rem;
+    font-size: 0.75rem;
+    color: var(--muted);
+  }
+  .legend-item { display: flex; align-items: center; gap: 0.3rem; }
+  .legend-marker {
+    width: 12px; height: 12px;
+    border-radius: 50%;
+    border: 1px solid var(--navy);
+  }
+  .legend-knee { background: var(--gold); }
+  .legend-winner { background: var(--gold); border-width: 2.5px; box-shadow: 0 0 0 2px var(--navy) inset; }
+  .legend-pareto { background: var(--navy); }
+  .legend-dominated { background: transparent; }
+
+  footer {
+    margin-top: 2rem;
+    font-size: 0.78rem;
+    color: var(--muted);
+    text-align: center;
+  }
+</style>
+</head>
+<body>
+
+<header>
+  <div class="logo">M</div>
+  <div>
+    <h1>PNG Encoder Pareto Report</h1>
+    <div class="sub">Generated by Manticore Projects &middot; encode time vs. file size &middot; lower-left is better</div>
+  </div>
+</header>
+
+<div class="grid">
+
+<div class="group">
+  <h2>
+    <span class="badge">3 ch</span>
+    text_test.png
+  </h2>
+
+  <div class="winner-banner">
+    <span class="label">Overall best</span>
+    ZPNG23Benchmark at level 2
+    &mdash; 7.31&nbsp;ms,
+    187.0&nbsp;KB
+  </div>
+
+  <div class="legend">
+    <div class="legend-item"><span class="legend-marker legend-winner"></span>overall winner</div>
+    <div class="legend-item"><span class="legend-marker legend-knee"></span>per-encoder knee</div>
+    <div class="legend-item"><span class="legend-marker legend-pareto"></span>pareto-optimal</div>
+    <div class="legend-item"><span class="legend-marker legend-dominated"></span>dominated</div>
+  </div>
+
+  <div class="chart-wrap">
+    <canvas id="chart_0"></canvas>
+  </div>
+
+    <div class="encoder-section">
+      <h3>FPNG Encoder (JNI)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Lvl</th>
+            <th>Status</th>
+            <th>Time (ms)</th>
+            <th>Size (KB)</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="dominated">
+            <td>1</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>10.12 &plusmn;NaN</td>
+            <td>339.3</td>
+            <td>4.2%</td>
+          </tr>
+          <tr class="dominated">
+            <td>2</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>8.58 &plusmn;NaN</td>
+            <td>8155.5</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="dominated">
+            <td>3</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>8.59 &plusmn;NaN</td>
+            <td>8155.5</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="pareto">
+            <td>4</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>7.38 &plusmn;NaN</td>
+            <td>668.2</td>
+            <td>8.2%</td>
+          </tr>
+          <tr class="pareto">
+            <td>5</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>9.84 &plusmn;NaN</td>
+            <td>339.3</td>
+            <td>4.2%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="encoder-section">
+      <h3>FPNG Encoder (Java 23)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Lvl</th>
+            <th>Status</th>
+            <th>Time (ms)</th>
+            <th>Size (KB)</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="pareto">
+            <td>1</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>7.79 &plusmn;NaN</td>
+            <td>339.3</td>
+            <td>4.2%</td>
+          </tr>
+          <tr class="dominated">
+            <td>2</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>5.90 &plusmn;NaN</td>
+            <td>8155.5</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="dominated">
+            <td>3</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>5.87 &plusmn;NaN</td>
+            <td>8155.5</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="pareto">
+            <td>4</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>4.69 &plusmn;NaN</td>
+            <td>668.2</td>
+            <td>8.2%</td>
+          </tr>
+          <tr class="dominated">
+            <td>5</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>7.91 &plusmn;NaN</td>
+            <td>339.3</td>
+            <td>4.2%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="encoder-section">
+      <h3>FPNGE (JNI)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Lvl</th>
+            <th>Status</th>
+            <th>Time (ms)</th>
+            <th>Size (KB)</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="pareto">
+            <td>1</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>2.66 &plusmn;NaN</td>
+            <td>741.6</td>
+            <td>94.7%</td>
+          </tr>
+          <tr class="dominated">
+            <td>2</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>2.97 &plusmn;NaN</td>
+            <td>783.3</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="pareto">
+            <td>3</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>3.76 &plusmn;NaN</td>
+            <td>685.4</td>
+            <td>87.5%</td>
+          </tr>
+          <tr class="knee">
+            <td>4</td>
+            <td><span class="flag flag-knee">KNEE</span></td>
+            <td>5.02 &plusmn;NaN</td>
+            <td>684.7</td>
+            <td>87.4%</td>
+          </tr>
+          <tr class="pareto">
+            <td>5</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>5.53 &plusmn;NaN</td>
+            <td>525.9</td>
+            <td>67.1%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="encoder-section">
+      <h3>FPNGE (Java 23 FFM)</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Lvl</th>
+            <th>Status</th>
+            <th>Time (ms)</th>
+            <th>Size (KB)</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="pareto">
+            <td>1</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>2.29 &plusmn;NaN</td>
+            <td>736.1</td>
+            <td>94.0%</td>
+          </tr>
+          <tr class="dominated">
+            <td>2</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>2.59 &plusmn;NaN</td>
+            <td>783.3</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="knee">
+            <td>3</td>
+            <td><span class="flag flag-knee">KNEE</span></td>
+            <td>3.35 &plusmn;NaN</td>
+            <td>679.9</td>
+            <td>86.8%</td>
+          </tr>
+          <tr class="dominated">
+            <td>4</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>4.63 &plusmn;NaN</td>
+            <td>684.7</td>
+            <td>87.4%</td>
+          </tr>
+          <tr class="pareto">
+            <td>5</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>5.10 &plusmn;NaN</td>
+            <td>525.9</td>
+            <td>67.1%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="encoder-section">
+      <h3>ImageIO</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Lvl</th>
+            <th>Status</th>
+            <th>Time (ms)</th>
+            <th>Size (KB)</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="dominated">
+            <td>1</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>38.26 &plusmn;NaN</td>
+            <td>152.1</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="pareto">
+            <td>2</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>36.86 &plusmn;NaN</td>
+            <td>152.1</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="dominated">
+            <td>3</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>38.22 &plusmn;NaN</td>
+            <td>152.1</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="dominated">
+            <td>4</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>36.89 &plusmn;NaN</td>
+            <td>152.1</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="dominated">
+            <td>5</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>36.93 &plusmn;NaN</td>
+            <td>152.1</td>
+            <td>100.0%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="encoder-section">
+      <h3>ObjectPlanet PNG</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Lvl</th>
+            <th>Status</th>
+            <th>Time (ms)</th>
+            <th>Size (KB)</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="pareto">
+            <td>1</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>53.66 &plusmn;NaN</td>
+            <td>336.4</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="knee">
+            <td>2</td>
+            <td><span class="flag flag-knee">KNEE</span></td>
+            <td>55.04 &plusmn;NaN</td>
+            <td>187.0</td>
+            <td>55.6%</td>
+          </tr>
+          <tr class="pareto">
+            <td>3</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>57.27 &plusmn;NaN</td>
+            <td>169.0</td>
+            <td>50.2%</td>
+          </tr>
+          <tr class="pareto">
+            <td>4</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>59.25 &plusmn;NaN</td>
+            <td>152.0</td>
+            <td>45.2%</td>
+          </tr>
+          <tr class="pareto">
+            <td>5</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>61.44 &plusmn;NaN</td>
+            <td>144.6</td>
+            <td>43.0%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="encoder-section">
+      <h3>PNGEncoder</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Lvl</th>
+            <th>Status</th>
+            <th>Time (ms)</th>
+            <th>Size (KB)</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="dominated">
+            <td>1</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>61.97 &plusmn;NaN</td>
+            <td>336.5</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="pareto">
+            <td>1</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>6.98 &plusmn;NaN</td>
+            <td>336.5</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="dominated">
+            <td>2</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>62.76 &plusmn;NaN</td>
+            <td>187.1</td>
+            <td>55.6%</td>
+          </tr>
+          <tr class="knee">
+            <td>2</td>
+            <td><span class="flag flag-knee">KNEE</span></td>
+            <td>8.32 &plusmn;NaN</td>
+            <td>187.1</td>
+            <td>55.6%</td>
+          </tr>
+          <tr class="dominated">
+            <td>3</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>57.83 &plusmn;NaN</td>
+            <td>169.1</td>
+            <td>50.2%</td>
+          </tr>
+          <tr class="pareto">
+            <td>3</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>10.70 &plusmn;NaN</td>
+            <td>169.1</td>
+            <td>50.2%</td>
+          </tr>
+          <tr class="dominated">
+            <td>4</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>66.64 &plusmn;NaN</td>
+            <td>152.1</td>
+            <td>45.2%</td>
+          </tr>
+          <tr class="pareto">
+            <td>4</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>12.62 &plusmn;NaN</td>
+            <td>152.1</td>
+            <td>45.2%</td>
+          </tr>
+          <tr class="dominated">
+            <td>5</td>
+            <td><span class="flag flag-dominated">dominated</span></td>
+            <td>69.24 &plusmn;NaN</td>
+            <td>144.6</td>
+            <td>43.0%</td>
+          </tr>
+          <tr class="pareto">
+            <td>5</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>15.02 &plusmn;NaN</td>
+            <td>144.6</td>
+            <td>43.0%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <div class="encoder-section">
+      <h3>ZPNG23Benchmark</h3>
+      <table>
+        <thead>
+          <tr>
+            <th>Lvl</th>
+            <th>Status</th>
+            <th>Time (ms)</th>
+            <th>Size (KB)</th>
+            <th>Ratio</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr class="pareto">
+            <td>1</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>5.52 &plusmn;NaN</td>
+            <td>338.8</td>
+            <td>100.0%</td>
+          </tr>
+          <tr class="winner">
+            <td>2</td>
+            <td><span class="flag flag-winner">WINNER</span></td>
+            <td>7.31 &plusmn;NaN</td>
+            <td>187.0</td>
+            <td>55.2%</td>
+          </tr>
+          <tr class="pareto">
+            <td>3</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>22.75 &plusmn;NaN</td>
+            <td>168.2</td>
+            <td>49.6%</td>
+          </tr>
+          <tr class="pareto">
+            <td>4</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>23.55 &plusmn;NaN</td>
+            <td>151.7</td>
+            <td>44.8%</td>
+          </tr>
+          <tr class="pareto">
+            <td>5</td>
+            <td><span class="flag flag-pareto">PARETO</span></td>
+            <td>25.03 &plusmn;NaN</td>
+            <td>144.2</td>
+            <td>42.6%</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+</div>
+
+<script>
+(function() {
+  const ctx = document.getElementById('chart_0');
+  new Chart(ctx, {
+    data: {
+      datasets: [
+        {
+          type: 'scatter',
+          label: 'FPNG Encoder (JNI)',
+          data: [{x:10.120,y:347437,level:1},{x:8.579,y:8351205,level:2},{x:8.591,y:8351205,level:3},{x:7.383,y:684249,level:4},{x:9.835,y:347437,level:5}],
+          backgroundColor: ['rgba(170,183,184,0.4)','rgba(170,183,184,0.4)','rgba(170,183,184,0.4)','#030146','#030146'],
+          borderColor: ['#030146','#030146','#030146','#030146','#030146'],
+          borderWidth: [1.5,1.5,1.5,1.5,1.5],
+          pointRadius: [5,5,5,7,7],
+          pointHoverRadius: [8,8,8,8,8],
+        },
+        {
+          type: 'line',
+          label: 'FPNG Encoder (JNI) (frontier)',
+          data: [{x:7.383,y:684249},{x:9.835,y:347437}],
+          borderColor: '#030146',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+          showLine: true,
+          tension: 0,
+          order: 99,
+        },
+        {
+          type: 'scatter',
+          label: 'FPNG Encoder (Java 23)',
+          data: [{x:7.792,y:347437,level:1},{x:5.902,y:8351205,level:2},{x:5.871,y:8351205,level:3},{x:4.695,y:684249,level:4},{x:7.914,y:347437,level:5}],
+          backgroundColor: ['#FF420E','rgba(170,183,184,0.4)','rgba(170,183,184,0.4)','#FF420E','rgba(170,183,184,0.4)'],
+          borderColor: ['#FF420E','#FF420E','#FF420E','#FF420E','#FF420E'],
+          borderWidth: [1.5,1.5,1.5,1.5,1.5],
+          pointRadius: [7,5,5,7,5],
+          pointHoverRadius: [8,8,8,8,8],
+        },
+        {
+          type: 'line',
+          label: 'FPNG Encoder (Java 23) (frontier)',
+          data: [{x:4.695,y:684249},{x:7.792,y:347437}],
+          borderColor: '#FF420E',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+          showLine: true,
+          tension: 0,
+          order: 99,
+        },
+        {
+          type: 'scatter',
+          label: 'FPNGE (JNI)',
+          data: [{x:2.657,y:759376,level:1},{x:2.972,y:802116,level:2},{x:3.763,y:701871,level:3},{x:5.025,y:701147,level:4},{x:5.531,y:538483,level:5}],
+          backgroundColor: ['#1d8348','rgba(170,183,184,0.4)','#1d8348','#f1c40f','#1d8348'],
+          borderColor: ['#1d8348','#1d8348','#1d8348','#030146','#1d8348'],
+          borderWidth: [1.5,1.5,1.5,2.5,1.5],
+          pointRadius: [7,5,7,10,7],
+          pointHoverRadius: [8,8,8,12,8],
+        },
+        {
+          type: 'line',
+          label: 'FPNGE (JNI) (frontier)',
+          data: [{x:2.657,y:759376},{x:3.763,y:701871},{x:5.025,y:701147},{x:5.531,y:538483}],
+          borderColor: '#1d8348',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+          showLine: true,
+          tension: 0,
+          order: 99,
+        },
+        {
+          type: 'scatter',
+          label: 'FPNGE (Java 23 FFM)',
+          data: [{x:2.291,y:753728,level:1},{x:2.591,y:802116,level:2},{x:3.350,y:696236,level:3},{x:4.625,y:701147,level:4},{x:5.104,y:538483,level:5}],
+          backgroundColor: ['#7d3c98','rgba(170,183,184,0.4)','#f1c40f','rgba(170,183,184,0.4)','#7d3c98'],
+          borderColor: ['#7d3c98','#7d3c98','#030146','#7d3c98','#7d3c98'],
+          borderWidth: [1.5,1.5,2.5,1.5,1.5],
+          pointRadius: [7,5,10,5,7],
+          pointHoverRadius: [8,8,12,8,8],
+        },
+        {
+          type: 'line',
+          label: 'FPNGE (Java 23 FFM) (frontier)',
+          data: [{x:2.291,y:753728},{x:3.350,y:696236},{x:5.104,y:538483}],
+          borderColor: '#7d3c98',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+          showLine: true,
+          tension: 0,
+          order: 99,
+        },
+        {
+          type: 'scatter',
+          label: 'ImageIO',
+          data: [{x:38.263,y:155745,level:1},{x:36.859,y:155745,level:2},{x:38.221,y:155745,level:3},{x:36.895,y:155745,level:4},{x:36.928,y:155745,level:5}],
+          backgroundColor: ['rgba(170,183,184,0.4)','#aab7b8','rgba(170,183,184,0.4)','rgba(170,183,184,0.4)','rgba(170,183,184,0.4)'],
+          borderColor: ['#aab7b8','#aab7b8','#aab7b8','#aab7b8','#aab7b8'],
+          borderWidth: [1.5,1.5,1.5,1.5,1.5],
+          pointRadius: [5,7,5,5,5],
+          pointHoverRadius: [8,8,8,8,8],
+        },
+        {
+          type: 'scatter',
+          label: 'ObjectPlanet PNG',
+          data: [{x:53.660,y:344451,level:1},{x:55.038,y:191482,level:2},{x:57.271,y:173059,level:3},{x:59.245,y:155697,level:4},{x:61.444,y:148031,level:5}],
+          backgroundColor: ['#030146','#f1c40f','#030146','#030146','#030146'],
+          borderColor: ['#030146','#030146','#030146','#030146','#030146'],
+          borderWidth: [1.5,2.5,1.5,1.5,1.5],
+          pointRadius: [7,10,7,7,7],
+          pointHoverRadius: [8,12,8,8,8],
+        },
+        {
+          type: 'line',
+          label: 'ObjectPlanet PNG (frontier)',
+          data: [{x:53.660,y:344451},{x:55.038,y:191482},{x:57.271,y:173059},{x:59.245,y:155697},{x:61.444,y:148031}],
+          borderColor: '#030146',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+          showLine: true,
+          tension: 0,
+          order: 99,
+        },
+        {
+          type: 'scatter',
+          label: 'PNGEncoder',
+          data: [{x:61.974,y:344571,level:1},{x:6.984,y:344571,level:1},{x:62.756,y:191542,level:2},{x:8.323,y:191542,level:2},{x:57.828,y:173119,level:3},{x:10.698,y:173119,level:3},{x:66.641,y:155745,level:4},{x:12.615,y:155745,level:4},{x:69.236,y:148079,level:5},{x:15.023,y:148079,level:5}],
+          backgroundColor: ['rgba(170,183,184,0.4)','#FF420E','rgba(170,183,184,0.4)','#f1c40f','rgba(170,183,184,0.4)','#FF420E','rgba(170,183,184,0.4)','#FF420E','rgba(170,183,184,0.4)','#FF420E'],
+          borderColor: ['#FF420E','#FF420E','#FF420E','#030146','#FF420E','#FF420E','#FF420E','#FF420E','#FF420E','#FF420E'],
+          borderWidth: [1.5,1.5,1.5,2.5,1.5,1.5,1.5,1.5,1.5,1.5],
+          pointRadius: [5,7,5,10,5,7,5,7,5,7],
+          pointHoverRadius: [8,8,8,12,8,8,8,8,8,8],
+        },
+        {
+          type: 'line',
+          label: 'PNGEncoder (frontier)',
+          data: [{x:6.984,y:344571},{x:8.323,y:191542},{x:10.698,y:173119},{x:12.615,y:155745},{x:15.023,y:148079}],
+          borderColor: '#FF420E',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+          showLine: true,
+          tension: 0,
+          order: 99,
+        },
+        {
+          type: 'scatter',
+          label: 'ZPNG23Benchmark',
+          data: [{x:5.517,y:346950,level:1},{x:7.307,y:191482,level:2},{x:22.746,y:172240,level:3},{x:23.545,y:155338,level:4},{x:25.026,y:147645,level:5}],
+          backgroundColor: ['#1d8348','#f1c40f','#1d8348','#1d8348','#1d8348'],
+          borderColor: ['#1d8348','#030146','#1d8348','#1d8348','#1d8348'],
+          borderWidth: [1.5,4,1.5,1.5,1.5],
+          pointRadius: [7,14,7,7,7],
+          pointHoverRadius: [8,16,8,8,8],
+        },
+        {
+          type: 'line',
+          label: 'ZPNG23Benchmark (frontier)',
+          data: [{x:5.517,y:346950},{x:7.307,y:191482},{x:22.746,y:172240},{x:23.545,y:155338},{x:25.026,y:147645}],
+          borderColor: '#1d8348',
+          borderWidth: 1.5,
+          borderDash: [5, 4],
+          pointRadius: 0,
+          fill: false,
+          showLine: true,
+          tension: 0,
+          order: 99,
+        },
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          position: 'bottom',
+          labels: {
+            font: { family: 'Fira Sans', size: 10 },
+            filter: function(item) { return !item.text.includes('(frontier)'); }
+          }
+        },
+        tooltip: {
+          callbacks: {
+            label: function(c) {
+              const p = c.raw;
+              const sizeKb = (p.y / 1024).toFixed(1);
+              if (p.level !== undefined) {
+                return c.dataset.label + ' L' + p.level +
+                       ': ' + p.x.toFixed(2) + ' ms, ' + sizeKb + ' KB';
+              }
+              return null;
+            }
+          }
+        }
+      },
+      scales: {
+        x: {
+          type: 'linear',
+          position: 'bottom',
+          title: { display: true, text: 'encode time (ms)', font: { family: 'Fira Sans', size: 11 } },
+          grid: { color: '#e2e2ef' },
+          ticks: { font: { family: 'Fira Sans', size: 10 } }
+        },
+        y: {
+          type: 'linear',
+          title: { display: true, text: 'output size (bytes)', font: { family: 'Fira Sans', size: 11 } },
+          grid: { color: '#e2e2ef' },
+          ticks: {
+            font: { family: 'Fira Sans', size: 10 },
+            callback: function(v) { return (v / 1024).toFixed(0) + ' KB'; }
+          }
+        }
+      }
+    }
+  });
+})();
+</script>
+
+</div>
+
+<footer>
+  Manticore Projects &copy; 2026 &middot;
+  Pareto frontier marks non-dominated (encoder, level) combinations &middot;
+  knee = perpendicular-distance maximum on normalized axes
+</footer>
+
+</body>
+</html>

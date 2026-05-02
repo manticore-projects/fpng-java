@@ -1,0 +1,201 @@
+name: Sonatype Close-and-Release
+
+# Final step of the release pipeline. Runs after either of the two publishing
+# workflows completes, and proceeds only when BOTH have succeeded for the
+# same commit on main.
+#
+# Why a third workflow:
+#   The FPNG/FPNGE workflow and the ZPNG workflow run in parallel on every
+#   push. Both publish to the same Sonatype staging repository (one
+#   groupId = one staging repo on the Sonatype side). If either workflow
+#   called closeAndReleaseSonatypeStagingRepository directly, it would
+#   close staging while the other was still pushing artifacts, stranding
+#   them in a freshly-opened unreleased repo. GitHub Actions has no
+#   cross-workflow `needs:` mechanism, so the canonical solution is
+#   workflow_run with gating: trigger on either workflow's completion,
+#   then verify the partner workflow also succeeded for the same SHA
+#   before releasing.
+#
+# Failure modes this guards against:
+#   - One workflow runs successfully, the other fails: we skip release.
+#   - One finishes well before the other: the second's completion fires
+#     this workflow again, and the partner check now passes.
+#   - A non-main branch triggers: we skip (workflow_run fires for any branch
+#     the upstream workflow ran on, including PR branches).
+#   - The triggering workflow itself failed: we skip.
+#   - Workflow re-run / idempotency: if there is nothing in staging to
+#     close, the gradle task no-ops cleanly.
+
+on:
+  workflow_run:
+    workflows:
+      - "FPNG / FPNGE CI/CD"
+      - "ZPNG CI/CD"
+    types:
+      - completed
+
+permissions:
+  # actions:read so we can query the partner workflow's status via the API.
+  # contents:read so we can checkout to run the gradle task.
+  actions: read
+  contents: read
+
+jobs:
+  release:
+    name: Close and Release
+    runs-on: ubuntu-latest
+
+    # Skip everything unless this run was triggered by a SUCCESSFUL completion
+    # on the main branch. Pull-request runs and failed runs are filtered out
+    # here; the partner-success check happens inside the job.
+    if: >-
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_branch == 'main'
+
+    steps:
+      - name: Identify trigger
+        # Make the Actions log self-explanatory: future-you debugging a
+        # release will appreciate seeing which workflow + commit triggered
+        # this run, without clicking through to the original workflow_run
+        # event payload.
+        run: |
+          echo "Triggered by: ${{ github.event.workflow_run.name }}"
+          echo "Commit:       ${{ github.event.workflow_run.head_sha }}"
+          echo "Conclusion:   ${{ github.event.workflow_run.conclusion }}"
+          echo "Branch:       ${{ github.event.workflow_run.head_branch }}"
+
+      - name: Check that the partner workflow also succeeded
+        id: partner_check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Triggering workflow's name -- determines which partner we look up.
+          TRIGGER: ${{ github.event.workflow_run.name }}
+          SHA: ${{ github.event.workflow_run.head_sha }}
+          REPO: ${{ github.repository }}
+        # Logic:
+        #   * If THIS run was triggered by the FPNG workflow, the partner is ZPNG.
+        #   * If triggered by ZPNG, the partner is FPNG.
+        # Query the GitHub API for the partner's most recent run on this SHA.
+        # Three states matter:
+        #   success         -> proceed
+        #   failure/cancelled/timed_out -> skip release (partner must succeed)
+        #   in_progress / queued / no run yet -> skip release (the partner's
+        #     own completion will trigger us again later, with a clean state)
+        run: |
+          set -euo pipefail
+
+          if [ "$TRIGGER" = "FPNG / FPNGE CI/CD" ]; then
+            PARTNER='ZPNG CI/CD'
+          elif [ "$TRIGGER" = "ZPNG CI/CD" ]; then
+            PARTNER='FPNG / FPNGE CI/CD'
+          else
+            echo "Unexpected trigger workflow: $TRIGGER" >&2
+            exit 1
+          fi
+          echo "Partner workflow: $PARTNER"
+
+          # GitHub's API filters runs by workflow file path or ID, not by name,
+          # so list all runs for this SHA and grep for the partner.
+          # --jq parses out the most recent matching run's conclusion + status.
+          RUNS_JSON=$(gh api \
+            "repos/${REPO}/actions/runs?head_sha=${SHA}&per_page=50" \
+            --jq '.workflow_runs[] | {name, status, conclusion, html_url}')
+
+          PARTNER_INFO=$(echo "$RUNS_JSON" | jq -c --arg n "$PARTNER" \
+            'select(.name == $n)' | head -n1)
+
+          if [ -z "$PARTNER_INFO" ]; then
+            echo "Partner workflow has not run yet for this SHA — skipping."
+            echo "It will trigger this workflow again when it completes."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          PARTNER_STATUS=$(echo "$PARTNER_INFO" | jq -r '.status')
+          PARTNER_CONCLUSION=$(echo "$PARTNER_INFO" | jq -r '.conclusion')
+          PARTNER_URL=$(echo "$PARTNER_INFO" | jq -r '.html_url')
+          echo "Partner status: $PARTNER_STATUS"
+          echo "Partner conclusion: $PARTNER_CONCLUSION"
+          echo "Partner URL: $PARTNER_URL"
+
+          if [ "$PARTNER_STATUS" != "completed" ]; then
+            echo "Partner is still $PARTNER_STATUS — skipping. Will retrigger."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [ "$PARTNER_CONCLUSION" != "success" ]; then
+            echo "Partner concluded with '$PARTNER_CONCLUSION' — refusing to release."
+            echo "Investigate $PARTNER_URL before releasing manually."
+            echo "should_release=false" >> "$GITHUB_OUTPUT"
+            # Exit 1 so the run is marked failed and shows up in notifications,
+            # rather than silently green when a release was actually expected.
+            exit 1
+          fi
+
+          echo "Both workflows green for ${SHA}. Proceeding with release."
+          echo "should_release=true" >> "$GITHUB_OUTPUT"
+
+      # All remaining steps gate on partner_check.outputs.should_release. The
+      # partner-still-running case exits the previous step with success and
+      # should_release=false, so we silently skip the rest of the job.
+
+      - name: Checkout
+        if: steps.partner_check.outputs.should_release == 'true'
+        uses: actions/checkout@v6
+        with:
+          # workflow_run runs from the default branch by default, regardless
+          # of which SHA triggered us. We need the exact SHA whose artifacts
+          # are sitting in staging — otherwise the gradle config used for
+          # close-and-release could differ from what was published.
+          ref: ${{ github.event.workflow_run.head_sha }}
+
+      - name: Set up JDK 23
+        if: steps.partner_check.outputs.should_release == 'true'
+        uses: actions/setup-java@v5
+        with:
+          java-version: '23'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        if: steps.partner_check.outputs.should_release == 'true'
+        uses: gradle/actions/setup-gradle@v6
+
+      # Same secrets as the publish jobs in the upstream workflows, since
+      # close-and-release authenticates to Sonatype with the same credentials.
+      - name: Install Gradle properties
+        if: steps.partner_check.outputs.should_release == 'true'
+        env:
+          GRADLE_PROPERTIES: ${{ secrets.GRADLE_PROPERTIES }}
+        run: |
+          mkdir -p ~/.gradle
+          printf '%s\n' "$GRADLE_PROPERTIES" > ~/.gradle/gradle.properties
+          echo "GRADLE_USER_HOME=$HOME/.gradle" >> "$GITHUB_ENV"
+
+      # GPG isn't needed for close-and-release itself (signing happened during
+      # publish), but the gradle-nexus-publish-plugin's task graph may pull in
+      # configurations that reference the signing plugin and fail if no key is
+      # available. Importing the secret key is cheap insurance against that.
+      - name: Install GPG signing key
+        if: steps.partner_check.outputs.should_release == 'true'
+        env:
+          GPG_SECRET_KEY: ${{ secrets.OSSRH_GPG_SECRET_KEY }}
+        run: |
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          printf '%s\n' "$GPG_SECRET_KEY" | gpg --batch --import
+          gpg --export-secret-keys -o ~/.gnupg/secring.gpg
+
+      - name: Close and release Sonatype staging
+        if: steps.partner_check.outputs.should_release == 'true'
+        # Idempotent: if there's nothing to close (e.g. someone already ran
+        # this manually, or the publishes uploaded nothing because nothing
+        # changed), the task will report no open staging repos and exit
+        # cleanly. No -x flags needed -- this is a single-task invocation.
+        run: ./gradlew closeAndReleaseSonatypeStagingRepository
+
+      - name: Summary
+        if: always() && steps.partner_check.outputs.should_release == 'true'
+        run: |
+          echo "Release path completed for ${{ github.event.workflow_run.head_sha }}."
+          echo "Both FPNG/FPNGE and ZPNG artifacts are now released to Maven Central."

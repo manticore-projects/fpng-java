@@ -1,4 +1,18 @@
-name: FPNG-Java CI/CD
+name: FPNG / FPNGE CI/CD
+
+# This workflow handles the original FPNG (Geldreich) and FPNGE (Google)
+# encoders. ZPNG (zlib-ng backed, ARM64-capable) lives in a separate workflow:
+# .github/workflows/zpng-publish.yml — which adds ARM64 runners that these
+# encoders don't yet support.
+#
+# Coordination with the ZPNG workflow: NEITHER workflow calls
+# closeAndReleaseSonatypeStagingRepository. With both workflows running in
+# parallel on the same push, whichever ran first would close the staging
+# repo before the other had finished publishing its artifacts, stranding
+# them. Run close-and-release manually after both workflows succeed.
+#
+# If you ever consolidate back into a single workflow, restore
+# closeAndReleaseSonatypeStagingRepository at the end of the publish job.
 
 on:
   push:
@@ -161,6 +175,19 @@ jobs:
       # Skip copyNativeLib -- it's a local-dev convenience that on the Linux
       # publish runner would only produce Linux libs and write them over the
       # multi-platform tree we just assembled in src/main/resources/.
+      #
+      # Note: closeAndReleaseSonatypeStagingRepository is intentionally NOT
+      # called here. With FPNG/FPNGE and ZPNG publishing from separate
+      # parallel workflows on the same push, neither workflow can safely
+      # close-and-release: whichever runs first would strand the other's
+      # artifacts in an open staging repo. Run the close-and-release step
+      # manually once both workflows have completed, e.g.
+      #
+      #   ./gradlew closeAndReleaseSonatypeStagingRepository
+      #
+      # from a local checkout against the published GRADLE_PROPERTIES.
+      # Or merge the two workflows back into one — in which case put the
+      # close-and-release back at the end of the unified publish job.
       - name: Publish to GitHub Packages and Maven Central
         run: >-
           ./gradlew
@@ -168,9 +195,10 @@ jobs:
           :fpng-java:publish
           :fpnge-java:publish
           :fpng-java23:publish
-          closeAndReleaseSonatypeStagingRepository
           -x :fpng:copyNativeLib
+          -x :fpng:stageNativeLibForJar
           -x :fpnge:copyNativeLib
+          -x :fpnge:stageNativeLibForJar
         env:
           USERNAME: ${{ github.actor }}
           TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -1752,7 +1752,9 @@ do_literals:
 
 			uint8_t* pDst = &temp_buf[temp_buf_ofs];
 
-			apply_filter(y ? 2 : 0, w, h, num_chans, bpl, pSrc, pPrev_src, pDst);
+			// apply_filter(y ? 2 : 0, w, h, num_chans, bpl, pSrc, pPrev_src, pDst);
+			// line 1755
+            apply_filter(0, w, h, num_chans, bpl, pSrc, pPrev_src, pDst);
 
 			temp_buf_ofs += 1 + bpl;
 		}

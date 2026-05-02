@@ -30,6 +30,9 @@
             <option value="$PROJECT_DIR$/fpnge" />
             <option value="$PROJECT_DIR$/fpnge-java" />
             <option value="$PROJECT_DIR$/maven-test" />
+            <option value="$PROJECT_DIR$/zpng" />
+            <option value="$PROJECT_DIR$/zpng-java" />
+            <option value="$PROJECT_DIR$/zpng-java23" />
           </set>
         </option>
       </GradleProjectSettings>
