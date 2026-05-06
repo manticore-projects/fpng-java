@@ -37,13 +37,16 @@ abstract class JmhParetoReportTask extends DefaultTask {
     // Mirror the labels used in JmhReportTask so the two reports speak the
     // same language. Keep in sync if the encoder roster changes.
     private static final Map<String, String> ENCODER_LABELS = [
-            'FPNGE23Benchmark'              : 'FPNGE (Java 23 FFM)',
-            'FPNGEBenchmark'                : 'FPNGE (JNI)',
-            'FPNGEncoder23Benchmark'        : 'FPNG Encoder (Java 23)',
-            'FPNGEncoderBenchmark'          : 'FPNG Encoder (JNI)',
+            'FPNGE23Benchmark'              : 'FPNGE (FFM)',
+            'FPNGEBenchmark'                : 'FPNGE (JNA)',
+            'FPNGEncoder23Benchmark'        : 'FPNG (FFM)',
+            'FPNGEncoderBenchmark'          : 'FPNG (JNA)',
+            'ZPNG23Benchmark'               : 'ZPNG (FFM)',
+            'ZPNGBenchmark'                 : 'ZPNG (JNA)',
             'ImageIOEncoderBenchmark'       : 'ImageIO',
             'ObjectPlanetPNGEncoderBenchmark': 'ObjectPlanet PNG',
             'PNGEncoderBenchmark'           : 'PNGEncoder',
+            'PNGEncoderFastestBenchmark'    : 'PNGEncoder (FAST)',
     ]
 
     // Per-encoder colour assignments. Cycles if there are more encoders than

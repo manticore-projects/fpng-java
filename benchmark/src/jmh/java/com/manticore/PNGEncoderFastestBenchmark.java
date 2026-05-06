@@ -20,13 +20,13 @@ package com.manticore;
 import com.pngencoder.PngEncoder;
 import org.openjdk.jmh.annotations.Benchmark;
 
-public class PNGEncoderBenchmark extends EncoderBenchmark {
+public class PNGEncoderFastestBenchmark extends EncoderBenchmark {
     @Benchmark
     public void encode() {
         byte[] result = new PngEncoder()
                 .withBufferedImage(image)
                 .withMultiThreadedCompressionEnabled(false)
-                .withPredictorEncoding(true)
+                .withPredictorEncoding(false)
                 .withCompressionLevel(compressionLevel)
                 .toBytes();
         size = result.length;

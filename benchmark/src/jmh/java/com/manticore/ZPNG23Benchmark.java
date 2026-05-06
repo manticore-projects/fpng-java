@@ -21,7 +21,6 @@ import com.manticore.tools.ZPNG23;
 import org.openjdk.jmh.annotations.Benchmark;
 
 public class ZPNG23Benchmark extends EncoderBenchmark {
-
     @Benchmark
     public void encode() {
         byte[] result = ZPNG23.encode(image, channels, compressionLevel);

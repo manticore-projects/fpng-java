@@ -17,18 +17,12 @@
  */
 package com.manticore;
 
-import com.pngencoder.PngEncoder;
-import org.openjdk.jmh.annotations.Benchmark;
+import com.manticore.tools.ZPNG;
 
-public class PNGEncoderBenchmark extends EncoderBenchmark {
-    @Benchmark
+public class ZPNGBenchmark extends EncoderBenchmark {
+    //@Benchmark
     public void encode() {
-        byte[] result = new PngEncoder()
-                .withBufferedImage(image)
-                .withMultiThreadedCompressionEnabled(false)
-                .withPredictorEncoding(true)
-                .withCompressionLevel(compressionLevel)
-                .toBytes();
+        byte[] result = ZPNG.encode(image, channels, compressionLevel);
         size = result.length;
         blackhole.consume(result);
     }

@@ -17,6 +17,8 @@ dependencies {
     jmh project(":fpng-java")
     jmh project(":fpnge-java")
     jmh project(":fpng-java23")
+    jmh project(":zpng-java")
+    jmh project(":zpng-java23")
     jmh 'com.pngencoder:pngencoder:+'
     jmh files('lib/pngencoder-1.jar')
 
@@ -80,10 +82,10 @@ tasks.named("jmh") {
 jmh {
     timeUnit = 'ms' // Output time unit. Available time units are: [m, s, ms, us, ns].
     verbosity = 'NORMAL' // Verbosity mode. Available modes are: [SILENT, NORMAL, EXTRA]
-    warmup = '1s' // Time to spend at each warmup iteration.
-    warmupIterations = 1
-    iterations = 1
-    fork = 1
+    warmup = '3s' // Time to spend at each warmup iteration.
+    warmupIterations = 2
+    iterations = 5
+    fork = 3
     benchmarkMode = ['avgt']
     //jvmArgs = ['-XX:+UseSerialGC','-Xms512M','-Xmx2G','-XX:+UseStringDeduplication', '-XX:-UseJVMCICompiler', '-XX:-EnableJVMCI']
     jvmArgs = ['-XX:+UseSerialGC', '-Xms512M', '-Xmx2G', '-XX:+UseStringDeduplication', '--enable-native-access=ALL-UNNAMED']
@@ -98,7 +100,7 @@ jmh {
     resultFormat = 'JSON'
 }
 
-jmhRunBytecodeGenerator.dependsOn(':fpng-java:build', ':fpnge-java:build', ':fpng-java23:build')
+jmhRunBytecodeGenerator.dependsOn(':fpng-java:build', ':fpnge-java:build', ':fpng-java23:build', ':zpng-java:build', ':zpng-java23:build')
 
 // === CPU tuning for stable benchmark results (Linux + AMD only) ======
 //

@@ -17,13 +17,16 @@ abstract class JmhReportTask extends DefaultTask {
 
     // Human-readable encoder labels, derived from the JMH benchmark class name
     private static final Map<String, String> ENCODER_LABELS = [
-            'FPNGE23Benchmark'              : 'FPNGE (Java 23 FFM)',
-            'FPNGEBenchmark'                : 'FPNGE (JNI)',
-            'FPNGEncoder23Benchmark'        : 'FPNG Encoder (Java 23)',
-            'FPNGEncoderBenchmark'          : 'FPNG Encoder (JNI)',
+            'FPNGE23Benchmark'              : 'FPNGE (FFM)',
+            'FPNGEBenchmark'                : 'FPNGE (JNA)',
+            'FPNGEncoder23Benchmark'        : 'FPNG (FFM)',
+            'FPNGEncoderBenchmark'          : 'FPNG (JNA)',
+            'ZPNG23Benchmark'               : 'ZPNG (FFM)',
+            'ZPNGBenchmark'                 : 'ZPNG (JNA)',
             'ImageIOEncoderBenchmark'       : 'ImageIO',
             'ObjectPlanetPNGEncoderBenchmark': 'ObjectPlanet PNG',
             'PNGEncoderBenchmark'           : 'PNGEncoder',
+            'PNGEncoderFastestBenchmark'    : 'PNGEncoder (FAST)',
     ]
 
     // Method-level overrides for benchmarks that expose multiple methods
