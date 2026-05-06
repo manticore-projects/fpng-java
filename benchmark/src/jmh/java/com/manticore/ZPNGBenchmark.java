@@ -20,7 +20,7 @@ package com.manticore;
 import com.manticore.tools.ZPNG;
 
 public class ZPNGBenchmark extends EncoderBenchmark {
-    //@Benchmark
+    // @Benchmark
     public void encode() {
         byte[] result = ZPNG.encode(image, channels, compressionLevel);
         size = result.length;
