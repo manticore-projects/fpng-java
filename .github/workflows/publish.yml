@@ -1,0 +1,366 @@
+name: Build, Publish & Release
+
+# Unified workflow that builds FPNG, FPNGE, and ZPNG natives across all
+# supported (OS, arch) combinations, publishes the *-java JARs, and runs
+# closeAndReleaseSonatypeStagingRepository — all from a single transaction
+# perspective.
+#
+# Why merged rather than split per-encoder:
+#   The gradle-nexus-publish-plugin tracks staging repos per Gradle
+#   invocation. When FPNG/FPNGE and ZPNG published from separate parallel
+#   workflows, neither could safely call close-and-release: the third
+#   "sonatype-release" workflow we tried had no open staging repo of its
+#   own to close (the plugin doesn't see other invocations' state). Merging
+#   back to one workflow makes publish + close-and-release atomic again.
+#
+# Matrix shape:
+#   x86_64 runners (ubuntu-latest, windows-latest, macos-15-intel):
+#       build FPNG + FPNGE + ZPNG
+#   ARM64 runners (ubuntu-24.04-arm, windows-11-arm, macos-latest):
+#       build ZPNG only — FPNG/FPNGE have no NEON port
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+permissions:
+  contents: read
+
+jobs:
+
+  # === Lint & check (Java only, no native) =============================
+  ci:
+    name: Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK 23
+        uses: actions/setup-java@v5
+        with:
+          java-version: '23'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Gradle check
+        run: ./gradlew check -x :maven-test:check
+
+  # === Build native libs on each platform / architecture ===============
+  #
+  # Six runners. x86 runners build all three encoders; ARM runners build
+  # only ZPNG (FPNG/FPNGE have no NEON paths). The conditional steps below
+  # do this gating.
+  #
+  # Expiration / availability notes:
+  #   - macos-15-intel:  Intel macOS runners deprecated. Label valid until
+  #                      August 2027; GitHub drops x86_64 macOS entirely after.
+  #   - macos-latest:    Apple Silicon (arm64) since runner-images update
+  #                      in mid-2024.
+  #   - ubuntu-24.04-arm and windows-11-arm: GA in public repos August 2025,
+  #                      in private repos January 2026.
+  build-native:
+    name: Native (${{ matrix.os }})
+    needs: ci
+    strategy:
+      # Don't cancel all six on a single failure — diagnosing a Windows-arm
+      # issue shouldn't depend on whether macOS-arm passed.
+      fail-fast: false
+      matrix:
+        include:
+          # x86_64 hosts — all three encoders
+          - os: ubuntu-latest
+            arch: x86_64
+            build_legacy: true     # build FPNG + FPNGE
+          - os: windows-latest
+            arch: x86_64
+            build_legacy: true
+          - os: macos-15-intel
+            arch: x86_64
+            build_legacy: true
+          # ARM64 hosts — ZPNG only
+          - os: ubuntu-24.04-arm
+            arch: aarch64
+            build_legacy: false
+          - os: windows-11-arm
+            arch: aarch64
+            build_legacy: false
+          - os: macos-latest
+            arch: aarch64
+            build_legacy: false
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK 23
+        uses: actions/setup-java@v5
+        with:
+          java-version: '23'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # FPNG and FPNGE: x86_64 only.
+      - name: Build and stage FPNG / FPNGE native libs
+        if: matrix.build_legacy
+        run: ./gradlew :fpng:stageNativeLibForJar :fpnge:stageNativeLibForJar
+
+      # ZPNG: every runner.
+      - name: Build and stage ZPNG native lib
+        run: ./gradlew :zpng:stageNativeLibForJar
+
+      - name: Upload FPNG native artifact
+        if: matrix.build_legacy
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpng-${{ matrix.os }}
+          if-no-files-found: error
+          path: fpng/build/native-jar-staging/**
+
+      - name: Upload FPNGE native artifact
+        if: matrix.build_legacy
+        uses: actions/upload-artifact@v7
+        with:
+          name: fpnge-${{ matrix.os }}
+          if-no-files-found: error
+          path: fpnge/build/native-jar-staging/**
+
+      - name: Upload ZPNG native artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: zpng-${{ matrix.os }}
+          if-no-files-found: error
+          path: zpng/build/native-jar-staging/**
+
+  # === Bundle native libs into JARs and publish ========================
+  #
+  # Single Gradle invocation: publish all six *-java modules, then close
+  # and release the Sonatype staging repo. Plugin's per-invocation state
+  # tracking makes the open-publish-close-release sequence atomic.
+  publish:
+    name: Publish
+    needs: build-native
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK 23
+        uses: actions/setup-java@v5
+        with:
+          java-version: '23'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      # Download into src/main/resources/lib/<n>/ — NOT build/resources/.
+      # processResources owns build/resources/main/ and would delete files
+      # there that aren't produced by a tracked task. Putting them under
+      # src/main/resources makes them legitimate source resources that
+      # processResources copies through into the JAR.
+      #
+      # Each runner's artifact contains <os>/<arch>/[stripped/]<file>.
+      # merge-multiple overlays all runners' trees into one.
+      - name: Download all FPNG native artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: fpng-*
+          path: fpng-java/src/main/resources/lib/fpng
+          merge-multiple: true
+
+      - name: Download all FPNGE native artifacts
+        uses: actions/download-artifact@v8
+        with:
+          pattern: fpnge-*
+          path: fpnge-java/src/main/resources/lib/fpnge
+          merge-multiple: true
+
+      # ZPNG natives go into BOTH wrappers — the JNA wrapper (zpng-java)
+      # and the FFM wrapper (zpng-java23) are independent JARs, each
+      # loading libzpng on its own. Whichever wrapper a downstream user
+      # picks, every runtime platform must work.
+      - name: Download all ZPNG native artifacts (for JNA wrapper)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: zpng-*
+          path: zpng-java/src/main/resources/lib/zpng
+          merge-multiple: true
+
+      - name: Download all ZPNG native artifacts (for FFM wrapper)
+        uses: actions/download-artifact@v8
+        with:
+          pattern: zpng-*
+          path: zpng-java23/src/main/resources/lib/zpng
+          merge-multiple: true
+
+      # Fail fast if any expected platform's lib didn't make it.
+      # FPNG and FPNGE: x86_64 only.
+      # ZPNG: all six (OS, arch) combinations.
+      - name: Verify native libs
+        shell: bash
+        run: |
+          echo "=== FPNG ==="
+          find fpng-java/src/main/resources/lib -type f | sort
+          echo "=== FPNGE ==="
+          find fpnge-java/src/main/resources/lib -type f | sort
+          echo "=== ZPNG (zpng-java) ==="
+          find zpng-java/src/main/resources/lib -type f | sort
+          echo "=== ZPNG (zpng-java23) ==="
+          find zpng-java23/src/main/resources/lib -type f | sort
+
+          fail=0
+
+          # FPNG and FPNGE: x86_64 only
+          for name in fpng fpnge; do
+            base="${name}-java/src/main/resources/lib/${name}"
+            for expected in \
+                "linux/x86-64/stripped/lib${name}.so" \
+                "macos/x86-64/stripped/lib${name}.dylib" \
+                "windows/x86-64/${name}.dll"; do
+              if [ ! -f "${base}/${expected}" ]; then
+                echo "ERROR: missing ${base}/${expected}" >&2
+                fail=1
+              fi
+            done
+          done
+
+          # ZPNG: all six platforms, in BOTH wrapper modules
+          for module in zpng-java zpng-java23; do
+            base="${module}/src/main/resources/lib/zpng"
+            for expected in \
+                "linux/x86-64/stripped/libzpng.so" \
+                "linux/aarch64/stripped/libzpng.so" \
+                "macos/x86-64/stripped/libzpng.dylib" \
+                "macos/aarch64/stripped/libzpng.dylib" \
+                "windows/x86-64/zpng.dll" \
+                "windows/aarch64/zpng.dll"; do
+              if [ ! -f "${base}/${expected}" ]; then
+                echo "ERROR: missing ${base}/${expected}" >&2
+                fail=1
+              fi
+            done
+          done
+
+          [ "$fail" -eq 0 ] || exit 1
+
+      - name: Install Gradle properties
+        env:
+          GRADLE_PROPERTIES: ${{ secrets.GRADLE_PROPERTIES }}
+        run: |
+          mkdir -p ~/.gradle
+          printf '%s\n' "$GRADLE_PROPERTIES" > ~/.gradle/gradle.properties
+          echo "GRADLE_USER_HOME=$HOME/.gradle" >> "$GITHUB_ENV"
+
+      - name: Install GPG signing key
+        env:
+          GPG_SECRET_KEY: ${{ secrets.OSSRH_GPG_SECRET_KEY }}
+        run: |
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          printf '%s\n' "$GPG_SECRET_KEY" | gpg --batch --import
+          gpg --export-secret-keys -o ~/.gnupg/secring.gpg
+
+      # The single transactional Gradle invocation:
+      #   * all *:publish tasks open the staging repo and upload artifacts
+      #   * closeAndReleaseSonatypeStagingRepository at the end closes and
+      #     promotes the same repo
+      # The plugin's per-invocation tracking makes this atomic; all
+      # artifacts from this build either release together or none do.
+      #
+      # Excluded tasks:
+      #   :*:copyNativeLib              — local-dev convenience, not for CI
+      #   :*:stageNativeLibForJar       — already done in build-native; the
+      #                                    artifacts are downloaded above
+      #   :*:test, :*:check             — already done in the ci job; rerunning
+      #                                    here would also try to rebuild natives
+      #                                    on this Linux x86 runner and break
+      - name: Publish all JARs and close-and-release Sonatype staging
+        run: >-
+          ./gradlew
+          :encoder-java:publish
+          :fpng-java:publish
+          :fpnge-java:publish
+          :fpng-java23:publish
+          :zpng-java:publish
+          :zpng-java23:publish
+          closeAndReleaseSonatypeStagingRepository
+          -x :fpng:copyNativeLib
+          -x :fpng:stageNativeLibForJar
+          -x :fpnge:copyNativeLib
+          -x :fpnge:stageNativeLibForJar
+          -x :zpng:copyNativeLib
+          -x :zpng:stageNativeLibForJar
+          -x :fpng-java:test
+          -x :fpng-java:check
+          -x :fpnge-java:test
+          -x :fpnge-java:check
+          -x :fpng-java23:test
+          -x :fpng-java23:check
+          -x :zpng-java:test
+          -x :zpng-java:check
+          -x :zpng-java23:test
+          -x :zpng-java23:check
+        env:
+          USERNAME: ${{ github.actor }}
+          TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # Diagnostic: dump JAR contents so a human can eyeball at-a-glance
+      # that the natives shipped at the right paths.
+      - name: Inspect built JARs
+        shell: bash
+        run: |
+          for module in fpng-java fpnge-java fpng-java23 zpng-java zpng-java23; do
+            jar="$(find ${module}/build/libs -name "${module}-*.jar" \
+                   ! -name '*-sources.jar' ! -name '*-javadoc.jar' 2>/dev/null | head -1)"
+            if [ -n "$jar" ]; then
+              echo "=== ${jar} ==="
+              unzip -l "$jar" | grep -E '\.(so|dylib|dll)$' \
+                || echo "WARNING: no native libs found in $jar"
+            fi
+          done
+
+  # === Integration test against published artifacts ====================
+  #
+  # Pull from Maven Central (post-publish) and verify each platform can
+  # load and run the native libs end-to-end. Tests every supported
+  # (OS, arch) combination — including the ARM ones, which only ship in
+  # the ZPNG artifact.
+  test:
+    name: Integration test (${{ matrix.os }})
+    needs: publish
+    continue-on-error: true
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - ubuntu-24.04-arm
+          - windows-latest
+          - windows-11-arm
+          - macos-15-intel
+          - macos-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up JDK 23
+        uses: actions/setup-java@v5
+        with:
+          java-version: '23'
+          distribution: 'temurin'
+
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
+
+      - name: Run maven-test suite
+        run: ./gradlew --no-build-cache --refresh-dependencies :maven-test:test
