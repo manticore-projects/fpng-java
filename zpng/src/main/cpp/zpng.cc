@@ -5,10 +5,16 @@
 //   - Filter: NONE on every row.
 //   - Compression: zlib-ng deflate at the supplied 0..9 level,
 //     strategy Z_DEFAULT_STRATEGY.
-//   - SIMD: AVX2 if compiled with -mavx2, else SSE4.1 with -msse4.1,
-//     else NEON on ARM64, else scalar. Used only for the channel-swap
-//     helpers; the filter pass under NONE is a memcpy. Deflate itself
-//     is dispatched by zlib-ng at runtime.
+//   - SIMD: the channel-swap helpers are dispatched at RUNTIME via
+//     CPUID (see zpng_dispatch.cc / zpng_kernels_*.cc). One binary runs
+//     correctly on any x86-64 (AVX2 -> SSE4.1 -> scalar) and on ARM64
+//     (NEON). Deflate itself is dispatched by zlib-ng at runtime.
+//
+//     THIS TU MUST BE COMPILED WITH BASELINE FLAGS ONLY. Compiling it
+//     with -mavx2 lets the compiler auto-vectorize ordinary loops with
+//     VEX/ymm instructions, reintroducing SIGILL on non-AVX CPUs (e.g.
+//     VirtualBox guests with AVX masked out of CPUID). Per-TU flags:
+//     see the table in zpng_kernels.h.
 //
 // Why NONE / DEFAULT?  Screen content has bimodal byte distributions
 // (heavy mass at 0x00 and 0xFF), small set of distinct pixel values,
@@ -27,11 +33,12 @@
 // needs. If you ever need this encoder to handle photographs, expose a
 // runtime switch — search for FILTER_NONE in this file.
 //
-// Build is driven by the project's build.gradle. The plugin selects the
-// right SIMD flags per target (x86 -> AVX2/SSE; ARM64 -> NEON via
-// armv8-a baseline) and statically links zlib-ng.
+// Build is driven by the project's build.gradle. The plugin compiles the
+// per-ISA kernel TUs with their specific SIMD flags (zpng_kernels.h has
+// the full table) and statically links zlib-ng.
 
 #include "zpng.h"
+#include "zpng_kernels.h"
 
 #include <zlib-ng.h>
 
@@ -61,33 +68,6 @@ extern "C" {
     return __compat_strtol(p, e, b);
   }
 }
-#endif
-
-// MSVC compatibility shim for the GCC/Clang SIMD feature macros.
-//
-// MSVC's /arch:AVX2 enables AVX2 + AVX + SSE4.x + SSE3 + SSE2 instruction
-// generation, but only predefines __AVX__ and __AVX2__. It never defines
-// __SSE4_1__ no matter the /arch value (that macro is GCC/Clang-specific).
-//
-// Our SIMD code is structured as cumulative #ifdef __AVX2__ + #ifdef __SSE4_1__
-// blocks: the AVX2 block actually USES the 128-bit `mask` variable declared
-// inside the SSE4.1 block, so both must be active when targeting AVX2 on any
-// compiler. To make the GCC/Clang convention work on MSVC, define __SSE4_1__
-// ourselves whenever we're building for AVX2 with MSVC (the SSE4.1 intrinsics
-// are unconditionally available in this case).
-#if defined(_MSC_VER) && defined(__AVX2__) && !defined(__SSE4_1__)
-  #define __SSE4_1__ 1
-#endif
-
-#ifdef __AVX2__
-  #include <immintrin.h>
-#elif defined(__SSE4_1__)
-  #include <smmintrin.h>
-#elif defined(__ARM_NEON) || defined(__aarch64__)
-  #include <arm_neon.h>
-#endif
-#ifdef __PCLMUL__
-  #include <wmmintrin.h>
 #endif
 
 // EXPORT is now defined in zpng.h as ZPNG_EXPORT. Keep a local alias so we
@@ -339,270 +319,41 @@ EXPORT size_t pngEncode(size_t bytes_per_channel, size_t num_channels,
 
 // -----------------------------------------------------------------------------
 // Channel-swap and pixel-format helpers exposed to Java FFM.
-// Kept here so a single .so contains everything Java FFM expects.
+//
+// The exported names and signatures are unchanged; the bodies now forward
+// through the runtime-selected kernel table (zpng_dispatch.cc). The magic
+// static behind select_kernels() costs one acquire load per call —
+// negligible against the per-pixel work, and it keeps initialization
+// thread-safe and lazy regardless of how the .so is loaded (dlopen, Java
+// FFM SymbolLookup, static linking into a test harness).
 // -----------------------------------------------------------------------------
 
 EXPORT void swapChannelsABGRtoRGBA(unsigned char *pImage, int numPixels) {
-  int i = 0;
-#ifdef __AVX2__
-  const __m256i mask256 = _mm256_set_epi8(
-      12,13,14,15, 8,9,10,11, 4,5,6,7, 0,1,2,3,
-      12,13,14,15, 8,9,10,11, 4,5,6,7, 0,1,2,3);
-  for (; i + 8 <= numPixels; i += 8) {
-    __m256i v = _mm256_loadu_si256((__m256i *)(pImage + i * 4));
-    _mm256_storeu_si256((__m256i *)(pImage + i * 4),
-                        _mm256_shuffle_epi8(v, mask256));
-  }
-#endif
-#if defined(__SSE4_1__)
-  const __m128i mask = _mm_set_epi8(12,13,14,15, 8,9,10,11, 4,5,6,7, 0,1,2,3);
-  for (; i + 4 <= numPixels; i += 4) {
-    __m128i v = _mm_loadu_si128((__m128i *)(pImage + i * 4));
-    _mm_storeu_si128((__m128i *)(pImage + i * 4),
-                     _mm_shuffle_epi8(v, mask));
-  }
-#endif
-#if defined(__ARM_NEON) || defined(__aarch64__)
-  // NEON: vqtbl1q_u8 takes a table-index vector in natural (low..high) order.
-  // The x86 mask above, declared via _mm_set_epi8(high..low), is logically
-  // {3,2,1,0, 7,6,5,4, 11,10,9,8, 15,14,13,12}: out byte i = in byte mask[i],
-  // i.e. reverse all 4 bytes of each pixel.
-  static const uint8_t neon_mask[16] = {3,2,1,0, 7,6,5,4, 11,10,9,8, 15,14,13,12};
-  uint8x16_t idx = vld1q_u8(neon_mask);
-  for (; i + 4 <= numPixels; i += 4) {
-    uint8x16_t v = vld1q_u8(pImage + i * 4);
-    vst1q_u8(pImage + i * 4, vqtbl1q_u8(v, idx));
-  }
-#endif
-  for (; i < numPixels; ++i) {
-    unsigned char a = pImage[i*4 + 0], b = pImage[i*4 + 1];
-    unsigned char g = pImage[i*4 + 2], r = pImage[i*4 + 3];
-    pImage[i*4 + 0] = r; pImage[i*4 + 1] = g;
-    pImage[i*4 + 2] = b; pImage[i*4 + 3] = a;
-  }
+  zpng::select_kernels().swapChannelsABGRtoRGBA(pImage, numPixels);
 }
 
 EXPORT void swapChannelsBGRtoRGB(unsigned char *pImage, int numPixels) {
-#if defined(__SSE4_1__)
-  const __m128i mask = _mm_set_epi8(
-      -1,-1,-1,-1, 9,10,11, 6,7,8, 3,4,5, 0,1,2);
-#endif
-  int i = 0;
-#ifdef __AVX2__
-  for (; i + 8 <= numPixels; i += 8) {
-    unsigned char *p = pImage + i * 3;
-    __m128i lo = _mm_loadu_si128((__m128i *)p);
-    __m128i ls = _mm_shuffle_epi8(lo, mask);
-    _mm_storel_epi64((__m128i *)p, ls);
-    *(uint32_t *)(p + 8) = (uint32_t)_mm_extract_epi32(ls, 2);
-    __m128i hi = _mm_loadu_si128((__m128i *)(p + 12));
-    __m128i hs = _mm_shuffle_epi8(hi, mask);
-    _mm_storel_epi64((__m128i *)(p + 12), hs);
-    *(uint32_t *)(p + 20) = (uint32_t)_mm_extract_epi32(hs, 2);
-  }
-#endif
-#if defined(__SSE4_1__)
-  for (; i + 4 <= numPixels; i += 4) {
-    unsigned char *p = pImage + i * 3;
-    __m128i v = _mm_loadu_si128((__m128i *)p);
-    __m128i s = _mm_shuffle_epi8(v, mask);
-    _mm_storel_epi64((__m128i *)p, s);
-    *(uint32_t *)(p + 8) = (uint32_t)_mm_extract_epi32(s, 2);
-  }
-#endif
-#if defined(__ARM_NEON) || defined(__aarch64__)
-  // BGR -> RGB: swap byte 0 and 2 within each 3-byte pixel.
-  // 4 pixels = 12 bytes; load 16, shuffle, store 12 (8 + 4 split-store).
-  static const uint8_t neon_mask[16] = {2,1,0, 5,4,3, 8,7,6, 11,10,9, 0,0,0,0};
-  uint8x16_t idx = vld1q_u8(neon_mask);
-  for (; i + 4 <= numPixels; i += 4) {
-    unsigned char *p = pImage + i * 3;
-    uint8x16_t v = vld1q_u8(p);
-    uint8x16_t s = vqtbl1q_u8(v, idx);
-    vst1_u8(p, vget_low_u8(s));
-    uint32_t hi = vgetq_lane_u32(vreinterpretq_u32_u8(s), 2);
-    memcpy(p + 8, &hi, 4);
-  }
-#endif
-  for (; i < numPixels; ++i) {
-    unsigned char *p = pImage + i * 3;
-    unsigned char t = p[0]; p[0] = p[2]; p[2] = t;
-  }
+  zpng::select_kernels().swapChannelsBGRtoRGB(pImage, numPixels);
 }
 
 EXPORT void intArgbToRgba(const unsigned char *src,
                           unsigned char *dst, int numPixels) {
-#if defined(__SSE4_1__)
-  const __m128i mask = _mm_set_epi8(
-      15,12,13,14, 11,8,9,10, 7,4,5,6, 3,0,1,2);
-#endif
-  int i = 0;
-#ifdef __AVX2__
-  const __m256i mask256 = _mm256_broadcastsi128_si256(mask);
-  for (; i + 8 <= numPixels; i += 8) {
-    __m256i v = _mm256_loadu_si256((const __m256i *)(src + i * 4));
-    _mm256_storeu_si256((__m256i *)(dst + i * 4),
-                        _mm256_shuffle_epi8(v, mask256));
-  }
-#endif
-#if defined(__SSE4_1__)
-  for (; i + 4 <= numPixels; i += 4) {
-    __m128i v = _mm_loadu_si128((const __m128i *)(src + i * 4));
-    _mm_storeu_si128((__m128i *)(dst + i * 4),
-                     _mm_shuffle_epi8(v, mask));
-  }
-#endif
-#if defined(__ARM_NEON) || defined(__aarch64__)
-  // intArgbToRgba: per pixel, in [B,G,R,A] -> out [R,G,B,A].
-  static const uint8_t neon_mask[16] = {2,1,0,3, 6,5,4,7, 10,9,8,11, 14,13,12,15};
-  uint8x16_t idx = vld1q_u8(neon_mask);
-  for (; i + 4 <= numPixels; i += 4) {
-    uint8x16_t v = vld1q_u8(src + i * 4);
-    vst1q_u8(dst + i * 4, vqtbl1q_u8(v, idx));
-  }
-#endif
-  for (; i < numPixels; ++i) {
-    unsigned char b = src[i*4+0], g = src[i*4+1];
-    unsigned char r = src[i*4+2], a = src[i*4+3];
-    dst[i*4+0] = r; dst[i*4+1] = g; dst[i*4+2] = b; dst[i*4+3] = a;
-  }
+  zpng::select_kernels().intArgbToRgba(src, dst, numPixels);
 }
 
 EXPORT void intRgbToRgba(const unsigned char *src,
                          unsigned char *dst, int numPixels) {
-#if defined(__SSE4_1__)
-  const __m128i mask = _mm_set_epi8(
-      15,12,13,14, 11,8,9,10, 7,4,5,6, 3,0,1,2);
-  const __m128i alpha = _mm_set1_epi32((int)0xFF000000);
-#endif
-  int i = 0;
-#ifdef __AVX2__
-  const __m256i mask256  = _mm256_broadcastsi128_si256(mask);
-  const __m256i alpha256 = _mm256_set1_epi32((int)0xFF000000);
-  for (; i + 8 <= numPixels; i += 8) {
-    __m256i v = _mm256_loadu_si256((const __m256i *)(src + i * 4));
-    v = _mm256_or_si256(_mm256_shuffle_epi8(v, mask256), alpha256);
-    _mm256_storeu_si256((__m256i *)(dst + i * 4), v);
-  }
-#endif
-#if defined(__SSE4_1__)
-  for (; i + 4 <= numPixels; i += 4) {
-    __m128i v = _mm_loadu_si128((const __m128i *)(src + i * 4));
-    v = _mm_or_si128(_mm_shuffle_epi8(v, mask), alpha);
-    _mm_storeu_si128((__m128i *)(dst + i * 4), v);
-  }
-#endif
-#if defined(__ARM_NEON) || defined(__aarch64__)
-  // intRgbToRgba: shuffle as for intArgbToRgba then OR alpha to 0xFF.
-  static const uint8_t neon_mask[16]  = {2,1,0,3, 6,5,4,7, 10,9,8,11, 14,13,12,15};
-  static const uint8_t neon_alpha[16] = {0,0,0,0xFF, 0,0,0,0xFF, 0,0,0,0xFF, 0,0,0,0xFF};
-  uint8x16_t idx = vld1q_u8(neon_mask);
-  uint8x16_t af  = vld1q_u8(neon_alpha);
-  for (; i + 4 <= numPixels; i += 4) {
-    uint8x16_t v = vld1q_u8(src + i * 4);
-    vst1q_u8(dst + i * 4, vorrq_u8(vqtbl1q_u8(v, idx), af));
-  }
-#endif
-  for (; i < numPixels; ++i) {
-    unsigned char b = src[i*4+0], g = src[i*4+1], r = src[i*4+2];
-    dst[i*4+0] = r; dst[i*4+1] = g; dst[i*4+2] = b; dst[i*4+3] = 0xFF;
-  }
+  zpng::select_kernels().intRgbToRgba(src, dst, numPixels);
 }
 
 EXPORT void intRgbToRgb(const unsigned char *src,
                         unsigned char *dst, int numPixels) {
-#if defined(__SSE4_1__)
-  const __m128i mask = _mm_set_epi8(
-      (char)0x80,(char)0x80,(char)0x80,(char)0x80,
-      12,13,14, 8,9,10, 4,5,6, 0,1,2);
-#endif
-  int i = 0;
-#ifdef __AVX2__
-  for (; i + 8 <= numPixels; i += 8) {
-    const unsigned char *sp = src + i * 4;
-    unsigned char *dp = dst + i * 3;
-    __m128i lo = _mm_loadu_si128((const __m128i *)sp);
-    __m128i ls = _mm_shuffle_epi8(lo, mask);
-    _mm_storel_epi64((__m128i *)dp, ls);
-    *(uint32_t *)(dp + 8) = (uint32_t)_mm_extract_epi32(ls, 2);
-    __m128i hi = _mm_loadu_si128((const __m128i *)(sp + 16));
-    __m128i hs = _mm_shuffle_epi8(hi, mask);
-    _mm_storel_epi64((__m128i *)(dp + 12), hs);
-    *(uint32_t *)(dp + 20) = (uint32_t)_mm_extract_epi32(hs, 2);
-  }
-#endif
-#if defined(__SSE4_1__)
-  for (; i + 4 <= numPixels; i += 4) {
-    __m128i v = _mm_loadu_si128((const __m128i *)(src + i * 4));
-    __m128i s = _mm_shuffle_epi8(v, mask);
-    _mm_storel_epi64((__m128i *)(dst + i * 3), s);
-    *(uint32_t *)(dst + i * 3 + 8) = (uint32_t)_mm_extract_epi32(s, 2);
-  }
-#endif
-#if defined(__ARM_NEON) || defined(__aarch64__)
-  // intRgbToRgb: 4-byte src [B,G,R,_] -> 3-byte dst [R,G,B].
-  static const uint8_t neon_mask[16] = {2,1,0, 6,5,4, 10,9,8, 14,13,12, 0,0,0,0};
-  uint8x16_t idx = vld1q_u8(neon_mask);
-  for (; i + 4 <= numPixels; i += 4) {
-    uint8x16_t v = vld1q_u8(src + i * 4);
-    uint8x16_t s = vqtbl1q_u8(v, idx);
-    vst1_u8(dst + i * 3, vget_low_u8(s));
-    uint32_t hi = vgetq_lane_u32(vreinterpretq_u32_u8(s), 2);
-    memcpy(dst + i * 3 + 8, &hi, 4);
-  }
-#endif
-  for (; i < numPixels; ++i) {
-    unsigned char b = src[i*4+0], g = src[i*4+1], r = src[i*4+2];
-    dst[i*3+0] = r; dst[i*3+1] = g; dst[i*3+2] = b;
-  }
+  zpng::select_kernels().intRgbToRgb(src, dst, numPixels);
 }
 
 EXPORT void intBgrToRgb(const unsigned char *src,
                         unsigned char *dst, int numPixels) {
-#if defined(__SSE4_1__)
-  const __m128i mask = _mm_set_epi8(
-      (char)0x80,(char)0x80,(char)0x80,(char)0x80,
-      14,13,12, 10,9,8, 6,5,4, 2,1,0);
-#endif
-  int i = 0;
-#ifdef __AVX2__
-  for (; i + 8 <= numPixels; i += 8) {
-    const unsigned char *sp = src + i * 4;
-    unsigned char *dp = dst + i * 3;
-    __m128i lo = _mm_loadu_si128((const __m128i *)sp);
-    __m128i ls = _mm_shuffle_epi8(lo, mask);
-    _mm_storel_epi64((__m128i *)dp, ls);
-    *(uint32_t *)(dp + 8) = (uint32_t)_mm_extract_epi32(ls, 2);
-    __m128i hi = _mm_loadu_si128((const __m128i *)(sp + 16));
-    __m128i hs = _mm_shuffle_epi8(hi, mask);
-    _mm_storel_epi64((__m128i *)(dp + 12), hs);
-    *(uint32_t *)(dp + 20) = (uint32_t)_mm_extract_epi32(hs, 2);
-  }
-#endif
-#if defined(__SSE4_1__)
-  for (; i + 4 <= numPixels; i += 4) {
-    __m128i v = _mm_loadu_si128((const __m128i *)(src + i * 4));
-    __m128i s = _mm_shuffle_epi8(v, mask);
-    _mm_storel_epi64((__m128i *)(dst + i * 3), s);
-    *(uint32_t *)(dst + i * 3 + 8) = (uint32_t)_mm_extract_epi32(s, 2);
-  }
-#endif
-#if defined(__ARM_NEON) || defined(__aarch64__)
-  // intBgrToRgb: 4-byte src [R,G,B,_] -> 3-byte dst [R,G,B] (just drop pad).
-  static const uint8_t neon_mask[16] = {0,1,2, 4,5,6, 8,9,10, 12,13,14, 0,0,0,0};
-  uint8x16_t idx = vld1q_u8(neon_mask);
-  for (; i + 4 <= numPixels; i += 4) {
-    uint8x16_t v = vld1q_u8(src + i * 4);
-    uint8x16_t s = vqtbl1q_u8(v, idx);
-    vst1_u8(dst + i * 3, vget_low_u8(s));
-    uint32_t hi = vgetq_lane_u32(vreinterpretq_u32_u8(s), 2);
-    memcpy(dst + i * 3 + 8, &hi, 4);
-  }
-#endif
-  for (; i < numPixels; ++i) {
-    unsigned char r = src[i*4+0], g = src[i*4+1], b = src[i*4+2];
-    dst[i*3+0] = r; dst[i*3+1] = g; dst[i*3+2] = b;
-  }
+  zpng::select_kernels().intBgrToRgb(src, dst, numPixels);
 }
 
 // -----------------------------------------------------------------------------
