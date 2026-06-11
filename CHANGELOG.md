@@ -2,30 +2,96 @@
 
 Changelog of fpng-java.
 
+## 2.1 (2026-06-11)
+
+### Features
+
+-  split SIMD kernels into per-ISA translation units with runtime dispatch. Compile the main file with the plain x86-64 baseline (no -mavx2), and the kernels three times (-mavx2, -msse4.1 and baseline) ([fd200](https://github.com/manticore-projects/fpng-java/commit/fd2005f102ba047) Andreas Reichel)  
+-  split SIMD kernels into per-ISA translation units with runtime dispatch. Compile the main file with the plain x86-64 baseline (no -mavx2), and the kernels three times (-mavx2, -msse4.1 and baseline) ([d7adf](https://github.com/manticore-projects/fpng-java/commit/d7adf65db55b69f) Andreas Reichel)  
+
+### Other changes
+
+**`fix(fpnge_main): fix memory leaks, integer overflows, and path traversal in CLI tool`**
+
+* Signed-off-by: Andreas Reichel &lt;andreas@manticore-projects.com&gt; 
+
+[38c61](https://github.com/manticore-projects/fpng-java/commit/38c61cf4adea2b1) Andreas Reichel *2026-05-14 01:10:36*
+
+
+## 2.0.6 (2026-05-07)
+
+### Other changes
+
+**Release 2.0.6**
+
+* Signed-off-by: Andreas Reichel &lt;andreas@manticore-projects.com&gt; 
+
+[6dc6b](https://github.com/manticore-projects/fpng-java/commit/6dc6b35c7e5e7b9) Andreas Reichel *2026-05-07 06:22:15*
+
+**Release 2.0.5**
+
+* Signed-off-by: Andreas Reichel &lt;andreas@manticore-projects.com&gt; 
+
+[e5442](https://github.com/manticore-projects/fpng-java/commit/e54426426dace83) Andreas Reichel *2026-05-06 23:52:30*
+
+**Release 2.0.4**
+
+* Signed-off-by: Andreas Reichel &lt;andreas@manticore-projects.com&gt; 
+
+[63df0](https://github.com/manticore-projects/fpng-java/commit/63df015acc5bfb2) Andreas Reichel *2026-05-06 00:40:23*
+
+**Release 2.0.3**
+
+* Signed-off-by: Andreas Reichel &lt;andreas@manticore-projects.com&gt; 
+
+[c1cb8](https://github.com/manticore-projects/fpng-java/commit/c1cb8fe37b81f94) Andreas Reichel *2026-05-06 00:36:05*
+
+
+## 2.0.2 (2026-05-02)
+
+### Features
+
+-  add ZPNG encoder, ARM64 support, and migrate to cmake-driven native build ([aca5a](https://github.com/manticore-projects/fpng-java/commit/aca5aebd896bdc8) Andreas Reichel)  
+
+### Other changes
+
+**Release 2.0.2**
+
+* Signed-off-by: Andreas Reichel &lt;andreas@manticore-projects.com&gt; 
+
+[1aeca](https://github.com/manticore-projects/fpng-java/commit/1aecaf6336b6f3f) Andreas Reichel *2026-05-02 02:21:55*
+
+
+## 2.0.1 (2026-05-02)
+
+### Features
+
+-  add ZPNG encoder, ARM64 support, and migrate to cmake-driven native build ([4ab6a](https://github.com/manticore-projects/fpng-java/commit/4ab6a8ef640a53b) Andreas Reichel)  
+
 ## 1.6.10 (2026-04-25)
 
 ### Bug Fixes
 
--  JNA `FPNGEncoder` shall observe `flags` (compression level) ([72abc](https://github.com/manticore-projects/fpng-java/commit/72abc5a6f6605d1) Andreas Reichel)
+-  JNA `FPNGEncoder` shall observe `flags` (compression level) ([72abc](https://github.com/manticore-projects/fpng-java/commit/72abc5a6f6605d1) Andreas Reichel)  
 
 ## 1.6.9 (2026-04-25)
 
 ### Features
 
--  avoid Java Graphics2D conversions ([0e7b8](https://github.com/manticore-projects/fpng-java/commit/0e7b8aa31b72203) Andreas Reichel)
+-  avoid Java Graphics2D conversions ([0e7b8](https://github.com/manticore-projects/fpng-java/commit/0e7b8aa31b72203) Andreas Reichel)  
 
 ## 1.6.8 (2026-04-25)
 
 ### Bug Fixes
 
--  preserve the OS/ARCH subfolders ([71e86](https://github.com/manticore-projects/fpng-java/commit/71e86cbc368dd03) Andreas Reichel)
+-  preserve the OS/ARCH subfolders ([71e86](https://github.com/manticore-projects/fpng-java/commit/71e86cbc368dd03) Andreas Reichel)  
 
 ## 1.6.7 (2026-04-25)
 
 ### Bug Fixes
 
--  publish the FFM artifact ([6903f](https://github.com/manticore-projects/fpng-java/commit/6903f43707f321a) Andreas Reichel)
--  Windows TEMP folder issue ([8b541](https://github.com/manticore-projects/fpng-java/commit/8b541a98975db44) Andreas Reichel)
+-  publish the FFM artifact ([6903f](https://github.com/manticore-projects/fpng-java/commit/6903f43707f321a) Andreas Reichel)  
+-  Windows TEMP folder issue ([8b541](https://github.com/manticore-projects/fpng-java/commit/8b541a98975db44) Andreas Reichel)  
 
 ## 1.6.6 (2026-04-24)
 
@@ -66,11 +132,11 @@ Changelog of fpng-java.
 
 ### Features
 
--  Java23 FFM module w/o JNA ([6469c](https://github.com/manticore-projects/fpng-java/commit/6469c7e113b5003) Andreas Reichel)
+-  Java23 FFM module w/o JNA ([6469c](https://github.com/manticore-projects/fpng-java/commit/6469c7e113b5003) Andreas Reichel)  
 
 ### Bug Fixes
 
--  resolve glibc 2.38 dependency in libfpnge.so ([eb3ee](https://github.com/manticore-projects/fpng-java/commit/eb3eec946c0bc68) Andreas Reichel)
+-  resolve glibc 2.38 dependency in libfpnge.so ([eb3ee](https://github.com/manticore-projects/fpng-java/commit/eb3eec946c0bc68) Andreas Reichel)  
 
 ### Other changes
 
@@ -84,7 +150,7 @@ Changelog of fpng-java.
 
 ### Bug Fixes
 
--  BGR/ABGR channel swap correctness and encoder performance ([ff668](https://github.com/manticore-projects/fpng-java/commit/ff66882febdff1a) Andreas Reichel)
+-  BGR/ABGR channel swap correctness and encoder performance ([ff668](https://github.com/manticore-projects/fpng-java/commit/ff66882febdff1a) Andreas Reichel)  
 
 ### Other changes
 
@@ -98,13 +164,13 @@ Changelog of fpng-java.
 
 ### Features
 
--  use `release/stripped` binary (instead of `debug`) ([eff20](https://github.com/manticore-projects/fpng-java/commit/eff20bf215748f7) Andreas Reichel)
--  use `release/stripped` binary (instead of `debug`) ([16df8](https://github.com/manticore-projects/fpng-java/commit/16df8a229badb54) Andreas Reichel)
+-  use `release/stripped` binary (instead of `debug`) ([eff20](https://github.com/manticore-projects/fpng-java/commit/eff20bf215748f7) Andreas Reichel)  
+-  use `release/stripped` binary (instead of `debug`) ([16df8](https://github.com/manticore-projects/fpng-java/commit/16df8a229badb54) Andreas Reichel)  
 
 ### Bug Fixes
 
--  buffer overflow in the Swap Bytes routine ([356c7](https://github.com/manticore-projects/fpng-java/commit/356c7127d3dd09f) Andreas Reichel)
--  Copy InputStream to file first, before ImageIO reading ([5be88](https://github.com/manticore-projects/fpng-java/commit/5be8844df5d341e) Andreas Reichel)
+-  buffer overflow in the Swap Bytes routine ([356c7](https://github.com/manticore-projects/fpng-java/commit/356c7127d3dd09f) Andreas Reichel)  
+-  Copy InputStream to file first, before ImageIO reading ([5be88](https://github.com/manticore-projects/fpng-java/commit/5be8844df5d341e) Andreas Reichel)  
 
 ### Other changes
 
@@ -113,13 +179,13 @@ Changelog of fpng-java.
 
 ### Features
 
--  add the BGR 3byte swap ([f0e7c](https://github.com/manticore-projects/fpng-java/commit/f0e7ca76e8b1740) Andreas Reichel)
--  improve the benchmarks ([505d7](https://github.com/manticore-projects/fpng-java/commit/505d727d3ad6b7b) Andreas Reichel)
--  set the FPNGe Compression Level 1..5 ([5012b](https://github.com/manticore-projects/fpng-java/commit/5012be3428cc3d8) Andreas Reichel)
+-  add the BGR 3byte swap ([f0e7c](https://github.com/manticore-projects/fpng-java/commit/f0e7ca76e8b1740) Andreas Reichel)  
+-  improve the benchmarks ([505d7](https://github.com/manticore-projects/fpng-java/commit/505d727d3ad6b7b) Andreas Reichel)  
+-  set the FPNGe Compression Level 1..5 ([5012b](https://github.com/manticore-projects/fpng-java/commit/5012be3428cc3d8) Andreas Reichel)  
 
 ### Bug Fixes
 
--  read resources from Class InputStream (instead System Resources) ([1c7eb](https://github.com/manticore-projects/fpng-java/commit/1c7ebd4905734fb) Andreas Reichel)
+-  read resources from Class InputStream (instead System Resources) ([1c7eb](https://github.com/manticore-projects/fpng-java/commit/1c7ebd4905734fb) Andreas Reichel)  
 
 ### Other changes
 
@@ -128,13 +194,13 @@ Changelog of fpng-java.
 
 ### Bug Fixes
 
--  include Macros for exporting function into DLL ([c5d1d](https://github.com/manticore-projects/fpng-java/commit/c5d1d96e388c2e4) Andreas Reichel)
--  -mtune=generic ([e8a03](https://github.com/manticore-projects/fpng-java/commit/e8a032ddf929dba) Andreas Reichel)
--  -mtune=generic ([dd216](https://github.com/manticore-projects/fpng-java/commit/dd2165227e7d6ee) Andreas Reichel)
--  OS detection ([e3bf5](https://github.com/manticore-projects/fpng-java/commit/e3bf5929267d733) Andreas Reichel)
--  OS detection ([547b3](https://github.com/manticore-projects/fpng-java/commit/547b38487729054) Andreas Reichel)
--  OS detection ([a0f04](https://github.com/manticore-projects/fpng-java/commit/a0f04255e74a8c1) Andreas Reichel)
--  make the library resource distinct ([13f60](https://github.com/manticore-projects/fpng-java/commit/13f603576131819) Andreas Reichel)
+-  include Macros for exporting function into DLL ([c5d1d](https://github.com/manticore-projects/fpng-java/commit/c5d1d96e388c2e4) Andreas Reichel)  
+-  -mtune=generic ([e8a03](https://github.com/manticore-projects/fpng-java/commit/e8a032ddf929dba) Andreas Reichel)  
+-  -mtune=generic ([dd216](https://github.com/manticore-projects/fpng-java/commit/dd2165227e7d6ee) Andreas Reichel)  
+-  OS detection ([e3bf5](https://github.com/manticore-projects/fpng-java/commit/e3bf5929267d733) Andreas Reichel)  
+-  OS detection ([547b3](https://github.com/manticore-projects/fpng-java/commit/547b38487729054) Andreas Reichel)  
+-  OS detection ([a0f04](https://github.com/manticore-projects/fpng-java/commit/a0f04255e74a8c1) Andreas Reichel)  
+-  make the library resource distinct ([13f60](https://github.com/manticore-projects/fpng-java/commit/13f603576131819) Andreas Reichel)  
 
 ### Other changes
 
@@ -143,8 +209,8 @@ Changelog of fpng-java.
 
 ### Bug Fixes
 
--  call the correct class `FPNGEncoder` in the `maven-test` ([e50c4](https://github.com/manticore-projects/fpng-java/commit/e50c4f1f5555c4f) Andreas Reichel)
--  Create New Filesystem for ZIP, when reading from a JAR file ([a77bb](https://github.com/manticore-projects/fpng-java/commit/a77bbbd50af1cec) Andreas Reichel)
+-  call the correct class `FPNGEncoder` in the `maven-test` ([e50c4](https://github.com/manticore-projects/fpng-java/commit/e50c4f1f5555c4f) Andreas Reichel)  
+-  Create New Filesystem for ZIP, when reading from a JAR file ([a77bb](https://github.com/manticore-projects/fpng-java/commit/a77bbbd50af1cec) Andreas Reichel)  
 
 ### Other changes
 
@@ -153,14 +219,14 @@ Changelog of fpng-java.
 
 ### Bug Fixes
 
--  spelling of the Gradle task ([94f93](https://github.com/manticore-projects/fpng-java/commit/94f9385c47199ea) Andreas Reichel)
+-  spelling of the Gradle task ([94f93](https://github.com/manticore-projects/fpng-java/commit/94f9385c47199ea) Andreas Reichel)  
 
 ## 0.99.1 (2023-11-21)
 
 ### Features
 
--  add `maven-test` sub project ([72d69](https://github.com/manticore-projects/fpng-java/commit/72d69a6ce49dab5) Andreas Reichel)
--  introduce prefix='lib' for supporting the Windows OS ([e39f2](https://github.com/manticore-projects/fpng-java/commit/e39f2479a41bb99) Andreas Reichel)
+-  add `maven-test` sub project ([72d69](https://github.com/manticore-projects/fpng-java/commit/72d69a6ce49dab5) Andreas Reichel)  
+-  introduce prefix='lib' for supporting the Windows OS ([e39f2](https://github.com/manticore-projects/fpng-java/commit/e39f2479a41bb99) Andreas Reichel)  
 
 ### Other changes
 
@@ -169,7 +235,7 @@ Changelog of fpng-java.
 
 ### Bug Fixes
 
--  FPNGE on Windows/MVCC ([43d29](https://github.com/manticore-projects/fpng-java/commit/43d29a81c8170b7) Andreas Reichel)
+-  FPNGE on Windows/MVCC ([43d29](https://github.com/manticore-projects/fpng-java/commit/43d29a81c8170b7) Andreas Reichel)  
 
 ### Other changes
 
@@ -178,12 +244,12 @@ Changelog of fpng-java.
 
 ### Features
 
--  add AVX optimized FPNGE ([92c14](https://github.com/manticore-projects/fpng-java/commit/92c146963553848) Andreas Reichel)
+-  add AVX optimized FPNGE ([92c14](https://github.com/manticore-projects/fpng-java/commit/92c146963553848) Andreas Reichel)  
 
 ### Bug Fixes
 
--  dependency syntax ([b0a94](https://github.com/manticore-projects/fpng-java/commit/b0a94dddb53da83) Andreas Reichel)
--  write directly into the CharArray and avoid a `memcpy` ([3eddd](https://github.com/manticore-projects/fpng-java/commit/3eddd701083795e) Andreas Reichel)
+-  dependency syntax ([b0a94](https://github.com/manticore-projects/fpng-java/commit/b0a94dddb53da83) Andreas Reichel)  
+-  write directly into the CharArray and avoid a `memcpy` ([3eddd](https://github.com/manticore-projects/fpng-java/commit/3eddd701083795e) Andreas Reichel)  
 
 ### Other changes
 
@@ -286,3 +352,5 @@ Changelog of fpng-java.
 
 
 [082b7](https://github.com/manticore-projects/fpng-java/commit/082b74ec63982e5) Andreas Reichel *2023-11-14 06:06:12*
+
+

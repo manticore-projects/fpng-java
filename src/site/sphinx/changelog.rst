@@ -4,7 +4,49 @@ Changelog
 ************************
 
 
-Latest Changes since |JAVA_FPNG_VERSION|
+Version 2.1
+=============================================================
+
+
+  * **feat: split SIMD kernels into per-ISA translation units with runtime dispatch. Compile the main file with the plain x86-64 baseline (no -mavx2), and the kernels three times (-mavx2, -msse4.1 and baseline)**
+    
+    Andreas Reichel, 2026-06-11
+  * **feat: split SIMD kernels into per-ISA translation units with runtime dispatch. Compile the main file with the plain x86-64 baseline (no -mavx2), and the kernels three times (-mavx2, -msse4.1 and baseline)**
+    
+    Andreas Reichel, 2026-06-11
+  * **`fix(fpnge_main): fix memory leaks, integer overflows, and path traversal in CLI tool`**
+    
+    Andreas Reichel, 2026-05-14
+
+Version 2.0.6
+=============================================================
+
+
+  * **Release 2.0.6**
+    
+    Andreas Reichel, 2026-05-07
+  * **Release 2.0.5**
+    
+    Andreas Reichel, 2026-05-06
+  * **Release 2.0.4**
+    
+    Andreas Reichel, 2026-05-06
+  * **Release 2.0.3**
+    
+    Andreas Reichel, 2026-05-06
+
+Version 2.0.2
+=============================================================
+
+
+  * **Release 2.0.2**
+    
+    Andreas Reichel, 2026-05-02
+  * **feat: add ZPNG encoder, ARM64 support, and migrate to cmake-driven native build**
+    
+    Andreas Reichel, 2026-05-02
+
+Version 2.0.1
 =============================================================
 
 
